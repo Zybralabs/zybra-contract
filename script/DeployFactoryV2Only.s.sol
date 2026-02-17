@@ -46,8 +46,8 @@ contract DeployFactoryV2Only is Script {
         console.log("  DEPLOYMENT COMPLETE");
         console.log("======================================================================");
         console.log("\n  ZybraGroupFactoryV2:", address(factory));
-        console.log("\n  Existing MockYieldVault (reuse): 0xF8572c6e7cd4dD6a309094E6be47Dfe70f946dF8");
-        console.log("  Existing USDC (Sepolia):          0x9d60E70d6d164708397E7F0aBa139589c7447255");
+        console.log("\n  Existing MockYieldVault (reuse): 0xeba97f1ba3993a3167dd77292f27d5dcc42dec69");
+        console.log("  Existing USDC (Sepolia):          0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238");
         console.log("");
         console.log("  Update these env vars:");
         console.log("  ZYBRAGROUP_FACTORY_V2_ADDRESS=<address above>");

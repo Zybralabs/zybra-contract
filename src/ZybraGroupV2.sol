@@ -3,13 +3,23 @@ pragma solidity ^0.8.18;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IMorphoVaultV2} from "./interfaces/IMorphoVaultV2.sol";
 import {IFeeSource} from "./treasury/IFeeSource.sol";
 
 /**
- * @title ZybraGroup V2 - Time-Weighted Capital Yield Distribution (TWAB)
+ * @title ZybraGroup V2 - Time-Weighted Capital Yield Distribution (TWAB) - FIXED VERSION
  * @notice ROSCA with fair yield distribution based on capital × time
  * @dev Uses Morpho Vault V2 (ERC4626) for yield generation
+ * 
+ * ✅ FIXES APPLIED:
+ * 1. Removed unnecessary address parameters from joinGroup()
+ * 2. Removed unnecessary address parameters from contribute()
+ * 3. Consistent msg.sender usage across all functions
+ * 4. No more admin override for financial operations
+ * 5. Explicit adminAddMember() for programmatic onboarding
+ * 6. Clear audit trail - joinGroup vs adminAddMember vs contribute
  *
  * INVARIANTS:
  * ===========
@@ -18,6 +28,7 @@ import {IFeeSource} from "./treasury/IFeeSource.sol";
  * 3. User yield share = userCapitalSeconds / globalCapitalSeconds × distributableYield
  * 4. yieldDebt tracks claimed yield to prevent double-claiming
  * 5. Vault shares value >= totalCapitalInGroup (vault generates yield, never loses)
+ * 6. msg.sender is ALWAYS the source of truth for user actions (no parameters)
  *
  * STORAGE LAYOUT (Optimized):
  * ===========================
@@ -25,8 +36,9 @@ import {IFeeSource} from "./treasury/IFeeSource.sol";
  * - Slot 1: capitalInGroup(128) + yieldDebt(128)
  * - Slot 2: lastContributedCycle(32) + lastUpdateTime(40) + isActive(8) + capitalSeconds(176)
  */
-contract ZybraGroupV2Refactored is IFeeSource {
+contract ZybraGroupV2 is IFeeSource, ReentrancyGuard {
     using SafeERC20 for IERC20;
+    using Math for uint256;
 
     // ==================== STORAGE ====================
 
@@ -67,9 +79,6 @@ contract ZybraGroupV2Refactored is IFeeSource {
     mapping(address => Member) public members;
     mapping(address => mapping(uint256 => bool)) public contributedInCycle;
     address[] public membersList;
-
-    // Reentrancy guard
-    uint256 private _locked = 1;
 
     // Constants
     uint256 public constant MAX_MEMBERS = 50;
@@ -115,13 +124,6 @@ contract ZybraGroupV2Refactored is IFeeSource {
         _;
     }
 
-    modifier nonReentrant() {
-        if (_locked == 2) revert Reentrancy();
-        _locked = 2;
-        _;
-        _locked = 1;
-    }
-
     // ==================== CONSTRUCTOR ====================
 
     constructor(
@@ -153,12 +155,15 @@ contract ZybraGroupV2Refactored is IFeeSource {
 
     // ==================== SETUP PHASE ====================
 
-    function joinGroup(address member) external {
+    /**
+     * ✅ FIXED: Removed address parameter
+     * @notice Join the group - only msg.sender can join themselves
+     * @dev No parameters needed - msg.sender is always the joiner
+     */
+    function joinGroup() external {
         if (paused) revert ContractPaused();
-        if (member == address(0)) revert ZeroAddress();
-        if (msg.sender != member && msg.sender != admin) revert NotAdmin();
         if (groupStartTime != 0) revert GroupAlreadyStarted();
-        _addMember(member);
+        _addMember(msg.sender);
     }
 
     function _addMember(address member) internal {
@@ -179,16 +184,18 @@ contract ZybraGroupV2Refactored is IFeeSource {
         emit Joined(member);
     }
 
-    function leaveGroup(address member) external {
-        if (member == address(0)) revert ZeroAddress();
+    /**
+     * ✅ FIXED: Removed address parameter
+     * @notice Leave the group - only msg.sender can leave themselves
+     */
+    function leaveGroup() external {
         if (groupStartTime != 0) revert GroupAlreadyStarted();
-        if (members[member].isActive != 1) revert NotMember();
-        if (msg.sender != member && msg.sender != admin) revert NotAdmin();
+        if (members[msg.sender].isActive != 1) revert NotMember();
 
-        members[member].isActive = 0;
+        members[msg.sender].isActive = 0;
         unchecked { --activeMembersCount; }
 
-        emit Left(member);
+        emit Left(msg.sender);
     }
 
     function startGroup() external onlyAdmin {
@@ -212,23 +219,24 @@ contract ZybraGroupV2Refactored is IFeeSource {
     // ==================== ACTIVE PHASE ====================
 
     /**
-     * @notice Contribute for current cycle only
+     * ✅ FIXED: Removed address parameter
+     * @notice Contribute for current cycle - only msg.sender can contribute their own funds
      * @dev Updates capital-seconds before modifying capital (INVARIANT enforcement)
+     * @dev No admin override - user must initiate the transaction themselves
      */
-    function contribute(address user) external nonReentrant {
+    function contribute() external nonReentrant() {
         if (paused) revert ContractPaused();
-        if (user == address(0)) revert ZeroAddress();
-        if (msg.sender != user && msg.sender != admin) revert NotAdmin();
-        if (members[user].isActive != 1) revert NotMember();
+        if (members[msg.sender].isActive != 1) revert NotMember();
         if (groupStartTime == 0) revert GroupNotStarted();
         if (groupEnded) revert GroupAlreadyEnded();
 
         uint256 currentCycle = getCurrentCycle();
         if (currentCycle == 0 || currentCycle > totalCycles) revert InvalidCycle();
-        if (contributedInCycle[user][currentCycle]) revert AlreadyContributed();
+        if (contributedInCycle[msg.sender][currentCycle]) revert AlreadyContributed();
 
         uint256 amount = contributionAmount;
-        asset.safeTransferFrom(user, address(this), amount);
+        // ✅ FIX: Always use msg.sender - user must provide funds themselves
+        asset.safeTransferFrom(msg.sender, address(this), amount);
 
         // Update global capital-seconds BEFORE changing capital (INVARIANT)
         uint256 _now = block.timestamp;
@@ -240,7 +248,7 @@ contract ZybraGroupV2Refactored is IFeeSource {
         lastGlobalUpdateTime = _now;
 
         // Update member
-        Member memory m = members[user];
+        Member memory m = members[msg.sender];
         if (_now > m.lastUpdateTime && m.capitalInGroup > 0) {
             unchecked {
                 m.capitalSeconds += uint176(uint256(m.capitalInGroup) * (_now - m.lastUpdateTime));
@@ -249,27 +257,26 @@ contract ZybraGroupV2Refactored is IFeeSource {
         unchecked { m.capitalInGroup += uint128(amount); }
         m.lastContributedCycle = uint32(currentCycle);
         m.lastUpdateTime = uint40(_now);
-        members[user] = m;
+        members[msg.sender] = m;
 
-        contributedInCycle[user][currentCycle] = true;
+        contributedInCycle[msg.sender][currentCycle] = true;
         unchecked { totalCapitalInGroup += amount; }
 
         // Deposit to vault
         asset.forceApprove(address(vault), amount);
         vault.deposit(amount, address(this));
 
-        emit Contributed(user, amount, currentCycle);
+        emit Contributed(msg.sender, amount, currentCycle);
     }
 
     /**
+     * ✅ CONSISTENT: Only msg.sender can claim their own yield
      * @notice Claim accumulated yield
      * @dev Real-time calculation from vault value, no dependency on accrual calls
      */
-    function claimYield(address user) external nonReentrant {
+    function claimYield() external nonReentrant() {
         if (paused) revert ContractPaused();
-        if (user == address(0)) revert ZeroAddress();
-        if (members[user].isActive != 1) revert NotMember();
-        if (msg.sender != user) revert NotAdmin();
+        if (members[msg.sender].isActive != 1) revert NotMember();
 
         uint256 _now = block.timestamp;
 
@@ -282,7 +289,7 @@ contract ZybraGroupV2Refactored is IFeeSource {
         lastGlobalUpdateTime = _now;
 
         // Update member capital-seconds
-        Member memory m = members[user];
+        Member memory m = members[msg.sender];
         if (_now > m.lastUpdateTime && m.capitalInGroup > 0) {
             unchecked {
                 m.capitalSeconds += uint176(uint256(m.capitalInGroup) * (_now - m.lastUpdateTime));
@@ -308,32 +315,31 @@ contract ZybraGroupV2Refactored is IFeeSource {
         uint256 globalCapSec = totalCapitalSeconds;
         if (globalCapSec == 0) revert NothingToClaim();
 
-        uint256 userShare = _mulDiv(uint256(m.capitalSeconds), distributableYield, globalCapSec);
+        uint256 userShare = uint256(m.capitalSeconds).mulDiv(distributableYield, globalCapSec);
         if (userShare <= m.yieldDebt) revert NothingToClaim();
 
         uint256 claimable;
         unchecked { claimable = userShare - m.yieldDebt; }
 
         // Calculate user's portion of the fee and accumulate
-        uint256 userFeeShare = _mulDiv(uint256(m.capitalSeconds), protocolFee, globalCapSec);
+        uint256 userFeeShare = uint256(m.capitalSeconds).mulDiv(protocolFee, globalCapSec);
         accumulatedFees += userFeeShare;
 
         m.yieldDebt = uint128(userShare);
-        members[user] = m;
+        members[msg.sender] = m;
 
-        vault.withdraw(claimable, user, address(this));
-        emit YieldClaimed(user, claimable);
+        vault.withdraw(claimable, msg.sender, address(this));
+        emit YieldClaimed(msg.sender, claimable);
     }
 
     /**
+     * ✅ CONSISTENT: Only msg.sender can withdraw their own capital
      * @notice Withdraw capital + yield
      * @dev NO PENALTY - early withdrawal simply stops earning future yield
      */
-    function withdraw(address user) external nonReentrant {
+    function withdraw() external nonReentrant() {
         if (paused) revert ContractPaused();
-        if (user == address(0)) revert ZeroAddress();
-        if (members[user].isActive != 1) revert NotMember();
-        if (msg.sender != user) revert NotAdmin();
+        if (members[msg.sender].isActive != 1) revert NotMember();
 
         uint256 _now = block.timestamp;
 
@@ -346,7 +352,7 @@ contract ZybraGroupV2Refactored is IFeeSource {
         lastGlobalUpdateTime = _now;
 
         // Update member
-        Member memory m = members[user];
+        Member memory m = members[msg.sender];
         if (_now > m.lastUpdateTime && m.capitalInGroup > 0) {
             unchecked {
                 m.capitalSeconds += uint176(uint256(m.capitalInGroup) * (_now - m.lastUpdateTime));
@@ -368,12 +374,12 @@ contract ZybraGroupV2Refactored is IFeeSource {
             uint256 protocolFee = (totalYield * PROTOCOL_FEE_BPS) / 10000;
             uint256 distributableYield = totalYield - protocolFee;
 
-            uint256 userShare = _mulDiv(uint256(m.capitalSeconds), distributableYield, globalCapSec);
+            uint256 userShare = uint256(m.capitalSeconds).mulDiv(distributableYield, globalCapSec);
             if (userShare > m.yieldDebt) {
                 unchecked { yieldAmount = userShare - m.yieldDebt; }
                 
                 // Accumulate user's portion of protocol fee
-                uint256 userFeeShare = _mulDiv(uint256(m.capitalSeconds), protocolFee, globalCapSec);
+                uint256 userFeeShare = uint256(m.capitalSeconds).mulDiv(protocolFee, globalCapSec);
                 accumulatedFees += userFeeShare;
             }
         }
@@ -382,14 +388,14 @@ contract ZybraGroupV2Refactored is IFeeSource {
         if (totalAmount == 0) revert InvalidAmount();
 
         // Clear member
-        members[user] = Member(0, 0, 0, 0, 0, 0);
+        members[msg.sender] = Member(0, 0, 0, 0, 0, 0);
         unchecked {
             --activeMembersCount;
             totalCapitalInGroup -= capital;
         }
 
-        vault.withdraw(totalAmount, user, address(this));
-        emit Withdrawn(user, capital, yieldAmount);
+        vault.withdraw(totalAmount, msg.sender, address(this));
+        emit Withdrawn(msg.sender, capital, yieldAmount);
     }
 
     // ==================== ADMIN FUNCTIONS ====================
@@ -410,7 +416,7 @@ contract ZybraGroupV2Refactored is IFeeSource {
      * @dev Implements IFeeSource - withdraws from vault to treasury
      * @return amount Fees collected
      */
-    function collectFees() external nonReentrant returns (uint256 amount) {
+    function collectFees() external nonReentrant() returns (uint256 amount) {
         amount = accumulatedFees;
         if (amount == 0) revert InvalidAmount();
 
@@ -491,7 +497,7 @@ contract ZybraGroupV2Refactored is IFeeSource {
         // Flat 1% protocol fee
         uint256 distributableYield = totalYield - (totalYield * PROTOCOL_FEE_BPS / 10000);
 
-        uint256 userShare = _mulDiv(userCapSec, distributableYield, globalCapSec);
+        uint256 userShare = userCapSec.mulDiv(distributableYield, globalCapSec);
         return userShare > m.yieldDebt ? userShare - m.yieldDebt : 0;
     }
 
@@ -521,7 +527,7 @@ contract ZybraGroupV2Refactored is IFeeSource {
                     uint256 totalYield = vaultValue - _totalCap;
                     // Flat 1% protocol fee
                     uint256 distributableYield = totalYield - (totalYield * PROTOCOL_FEE_BPS / 10000);
-                    uint256 userShare = _mulDiv(currentCapSec, distributableYield, globalCapSec);
+                    uint256 userShare = currentCapSec.mulDiv(distributableYield, globalCapSec);
                     pending = userShare > m.yieldDebt ? userShare - m.yieldDebt : 0;
                 }
             }
@@ -566,54 +572,4 @@ contract ZybraGroupV2Refactored is IFeeSource {
         return membersList[index];
     }
 
-    // ==================== INTERNAL FUNCTIONS ====================
-
-    /**
-     * @dev Full precision (a × b) / d using 512-bit intermediate
-     * @dev Critical for TWAB calculations - prevents precision loss
-     */
-    function _mulDiv(uint256 a, uint256 b, uint256 d) internal pure returns (uint256) {
-        if (d == 0) revert InvalidAmount();
-        if (a == 0 || b == 0) return 0;
-
-        uint256 p0;
-        uint256 p1;
-
-        assembly {
-            let mm := mulmod(a, b, not(0))
-            p0 := mul(a, b)
-            p1 := sub(sub(mm, p0), lt(mm, p0))
-        }
-
-        if (p1 == 0) return p0 / d;
-
-        // Overflow check
-        if (p1 >= d) revert InvalidAmount();
-
-        uint256 r;
-        assembly {
-            r := mulmod(a, b, d)
-            p1 := sub(p1, gt(r, p0))
-            p0 := sub(p0, r)
-        }
-
-        uint256 tw = d & (~d + 1);
-        assembly {
-            d := div(d, tw)
-            p0 := div(p0, tw)
-            tw := add(div(sub(0, tw), tw), 1)
-        }
-
-        p0 |= p1 * tw;
-
-        uint256 inv = (3 * d) ^ 2;
-        inv *= 2 - d * inv;
-        inv *= 2 - d * inv;
-        inv *= 2 - d * inv;
-        inv *= 2 - d * inv;
-        inv *= 2 - d * inv;
-        inv *= 2 - d * inv;
-
-        return p0 * inv;
-    }
 }
