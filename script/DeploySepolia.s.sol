@@ -3,8 +3,8 @@ pragma solidity ^0.8.20;
 
 import "forge-std/Script.sol";
 import "forge-std/console.sol";
-import "../src/ZybraGroupV2.sol";
-import "../src/ZybraGroupFactoryV2.sol";
+import "../src/ZybraGroup.sol";
+import "../src/ZybraGroupFactory.sol";
 import "../src/mocks/MockYieldVault.sol";
 import "../src/treasury/Treasury.sol";
 import "../src/treasury/FeeCollector.sol";
@@ -12,7 +12,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
  * @title DeployZybraV2Sepolia
- * @notice Deploys ZybraGroupV2 ecosystem on Sepolia using existing USDC
+ * @notice Deploys ZybraGroup ecosystem on Sepolia using existing USDC
  * 
  * Usage:
  *   forge script script/DeployZybraV2Sepolia.s.sol --rpc-url $SEPOLIA_RPC_URL --broadcast --private-key $PRIVATE_KEY --verify
@@ -66,13 +66,13 @@ contract DeployZybraV2Sepolia is Script {
         vault.setAnnualYieldRate(1000);
         console.log("   Annual yield rate set to 10% APY");
 
-        // ============ 3. Deploy ZybraGroupFactoryV2 ============
-        console.log("\n3. Deploying ZybraGroupFactoryV2...");
-        ZybraGroupFactoryV2 factory = new ZybraGroupFactoryV2();
-        console.log("   ZybraGroupFactoryV2 deployed at:", address(factory));
+        // ============ 3. Deploy ZybraGroupFactory ============
+        console.log("\n3. Deploying ZybraGroupFactory...");
+        ZybraGroupFactory factory = new ZybraGroupFactory();
+        console.log("   ZybraGroupFactory deployed at:", address(factory));
 
-        // ============ 4. Deploy a Sample ZybraGroupV2 ============
-        console.log("\n4. Creating ZybraGroupV2 via factory...");
+        // ============ 4. Deploy a Sample ZybraGroup ============
+        console.log("\n4. Creating ZybraGroup via factory...");
         console.log("   Parameters:");
         console.log("   - USDC:", usdc);
         console.log("   - Contribution:", CONTRIBUTION_AMOUNT / 1e6, "USDC");
@@ -91,7 +91,7 @@ contract DeployZybraV2Sepolia is Script {
             address(vault),
             address(treasury)
         );
-        console.log("   ZybraGroupV2 deployed at:", groupAddress);
+        console.log("   ZybraGroup deployed at:", groupAddress);
 
         // Register group in FeeCollector
         feeCollector.registerSource(groupAddress);
@@ -109,8 +109,8 @@ contract DeployZybraV2Sepolia is Script {
         console.log("  Treasury:               ", address(treasury));
         console.log("  FeeCollector:           ", address(feeCollector));
         console.log("  MockYieldVault:         ", address(vault));
-        console.log("  ZybraGroupFactoryV2:    ", address(factory));
-        console.log("  ZybraGroupV2:           ", groupAddress);
+        console.log("  ZybraGroupFactory:    ", address(factory));
+        console.log("  ZybraGroup:           ", groupAddress);
         console.log("");
     }
 }

@@ -3,18 +3,18 @@ pragma solidity ^0.8.20;
 
 import "forge-std/Script.sol";
 import "forge-std/console.sol";
-import "../src/ZybraGroupV2.sol";
-import "../src/ZybraGroupFactoryV2.sol";
+import "../src/ZybraGroup.sol";
+import "../src/ZybraGroupFactory.sol";
 import "../src/mocks/MockYieldVault.sol";
 import "../src/mocks/MockERC20.sol";
 
 /**
  * @title DeployZybraV2
- * @notice Deploys ZybraGroupV2 ecosystem:
+ * @notice Deploys ZybraGroup ecosystem:
  *         1. MockERC20 (USDC) - for testing
  *         2. MockYieldVault (Mock Morpho Vault)
- *         3. ZybraGroupV2Factory
- *         4. A sample ZybraGroupV2 via factory
+ *         3. ZybraGroupFactory
+ *         4. A sample ZybraGroup via factory
  * 
  * Usage:
  *   Local Anvil: forge script script/DeployZybraV2.s.sol --rpc-url http://127.0.0.1:8545 --broadcast
@@ -55,13 +55,13 @@ contract DeployZybraV2 is Script {
         );
         console.log("   MockYieldVault deployed at:", address(vault));
 
-        // ============ 3. Deploy ZybraGroupFactoryV2 ============
-        console.log("\n3. Deploying ZybraGroupFactoryV2...");
-        ZybraGroupFactoryV2 factory = new ZybraGroupFactoryV2();
-        console.log("   ZybraGroupFactoryV2 deployed at:", address(factory));
+        // ============ 3. Deploy ZybraGroupFactory ============
+        console.log("\n3. Deploying ZybraGroupFactory...");
+        ZybraGroupFactory factory = new ZybraGroupFactory();
+        console.log("   ZybraGroupFactory deployed at:", address(factory));
 
-        // ============ 4. Deploy a Sample ZybraGroupV2 ============
-        console.log("\n4. Creating sample ZybraGroupV2 via factory...");
+        // ============ 4. Deploy a Sample ZybraGroup ============
+        console.log("\n4. Creating sample ZybraGroup via factory...");
         console.log("   Parameters:");
         console.log("   - Contribution:", CONTRIBUTION_AMOUNT / 1e6, "USDC");
         console.log("   - Cycle Duration:", CYCLE_DURATION / 1 days, "days");
@@ -78,7 +78,7 @@ contract DeployZybraV2 is Script {
             address(vault),
             deployer  // treasury - using deployer as treasury for testing
         );
-        console.log("   ZybraGroupV2 deployed at:", groupAddress);
+        console.log("   ZybraGroup deployed at:", groupAddress);
 
         // ============ 5. Setup: Mint USDC to deployer ============
         console.log("\n5. Minting 100,000 USDC to deployer for testing...");
@@ -100,8 +100,8 @@ contract DeployZybraV2 is Script {
         console.log("\nContract Addresses:");
         console.log("  MockUSDC:             ", address(usdc));
         console.log("  MockYieldVault:       ", address(vault));
-        console.log("  ZybraGroupFactoryV2:  ", address(factory));
-        console.log("  ZybraGroupV2:         ", groupAddress);
+        console.log("  ZybraGroupFactory:  ", address(factory));
+        console.log("  ZybraGroup:         ", groupAddress);
         console.log("\nNext Steps:");
         console.log("  1. Approve USDC for the group: usdc.approve(group, amount)");
         console.log("  2. Join the group: group.joinGroup(userAddress)");

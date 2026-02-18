@@ -3,11 +3,11 @@ pragma solidity ^0.8.20;
 
 import "forge-std/Script.sol";
 import "forge-std/console.sol";
-import "../src/ZybraGroupFactoryV2.sol";
+import "../src/ZybraGroupFactory.sol";
 
 /**
  * @title DeployFactoryV2Only
- * @notice Deploys ONLY the updated ZybraGroupFactoryV2 on Sepolia
+ * @notice Deploys ONLY the updated ZybraGroupFactory on Sepolia
  *         Reuses existing MockYieldVault and USDC contracts
  * 
  * Usage:
@@ -33,10 +33,10 @@ contract DeployFactoryV2Only is Script {
 
         vm.startBroadcast();
 
-        // Deploy updated ZybraGroupFactoryV2
-        console.log("Deploying ZybraGroupFactoryV2...");
-        ZybraGroupFactoryV2 factory = new ZybraGroupFactoryV2();
-        console.log("ZybraGroupFactoryV2 deployed at:", address(factory));
+        // Deploy updated ZybraGroupFactory
+        console.log("Deploying ZybraGroupFactory...");
+        ZybraGroupFactory factory = new ZybraGroupFactory();
+        console.log("ZybraGroupFactory deployed at:", address(factory));
 
         vm.stopBroadcast();
 
@@ -45,9 +45,9 @@ contract DeployFactoryV2Only is Script {
         console.log("======================================================================");
         console.log("  DEPLOYMENT COMPLETE");
         console.log("======================================================================");
-        console.log("\n  ZybraGroupFactoryV2:", address(factory));
-        console.log("\n  Existing MockYieldVault (reuse): 0xeba97f1ba3993a3167dd77292f27d5dcc42dec69");
-        console.log("  Existing USDC (Sepolia):          0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238");
+        console.log("\n  ZybraGroupFactory:", address(factory));
+        console.log("\n  Existing MockYieldVault (reuse): 0xF8572c6e7cd4dD6a309094E6be47Dfe70f946dF8");
+        console.log("  Existing USDC (Sepolia):          0x9d60E70d6d164708397E7F0aBa139589c7447255");
         console.log("");
         console.log("  Update these env vars:");
         console.log("  ZYBRAGROUP_FACTORY_V2_ADDRESS=<address above>");

@@ -2,14 +2,14 @@
 pragma solidity ^0.8.18;
 
 import "forge-std/Test.sol";
-import {ZybraGroupV2Refactored} from "src/ZybraGroupV2.sol";
-import {ZybraGroupFactoryV2} from "src/ZybraGroupFactoryV2.sol";
+import {ZybraGroup} from "src/ZybraGroup.sol";
+import {ZybraGroupFactory} from "src/ZybraGroupFactory.sol";
 import {MockYieldVault} from "src/mocks/MockYieldVault.sol";
 import {MockERC20} from "src/mocks/MockERC20.sol";
 
 /**
- * @title ZybraGroupV2Security
- * @notice Access control & security tests for ZybraGroupV2
+ * @title ZybraGroupSecurity
+ * @notice Access control & security tests for ZybraGroup
  * 
  * Tests cover:
  *   1. withdraw(address user) — only user themselves can call
@@ -22,9 +22,9 @@ import {MockERC20} from "src/mocks/MockERC20.sol";
  *   8. reentrancy guard coverage
  *   9. state transition guards
  */
-contract ZybraGroupV2SecurityTest is Test {
-    ZybraGroupFactoryV2 public factory;
-    ZybraGroupV2Refactored public group;
+contract ZybraGroupSecurityTest is Test {
+    ZybraGroupFactory public factory;
+    ZybraGroup public group;
     MockYieldVault public vault;
     MockERC20 public usdc;
 
@@ -49,7 +49,7 @@ contract ZybraGroupV2SecurityTest is Test {
     error GroupAlreadyStarted();
     error GroupNotStarted();
     error GroupAlreadyEnded();
-    error NoMembers();
+    error InsufficientMembers();
     error AlreadyContributed();
     error NothingToClaim();
     error Reentrancy();
@@ -69,7 +69,7 @@ contract ZybraGroupV2SecurityTest is Test {
         vault.setAnnualYieldRate(5000); // 50% APY for fast testing
 
         // Deploy factory + group
-        factory = new ZybraGroupFactoryV2();
+        factory = new ZybraGroupFactory();
         address groupAddress = factory.deployGroup(
             address(usdc),
             CONTRIBUTION,
@@ -79,7 +79,7 @@ contract ZybraGroupV2SecurityTest is Test {
             address(vault),
             treasury
         );
-        group = ZybraGroupV2Refactored(groupAddress);
+        group = ZybraGroup(groupAddress);
 
         // Fund users
         usdc.mint(alice, 1_000_000_000);
@@ -99,9 +99,9 @@ contract ZybraGroupV2SecurityTest is Test {
 
     function _setupActiveGroup() internal {
         vm.prank(alice);
-        group.joinGroup(alice);
+        group.joinGroup();
         vm.prank(bob);
-        group.joinGroup(bob);
+        group.joinGroup();
         vm.prank(admin);
         group.startGroup();
     }
@@ -109,9 +109,9 @@ contract ZybraGroupV2SecurityTest is Test {
     function _contributeAndGenerateYield() internal {
         _setupActiveGroup();
         vm.prank(alice);
-        group.contribute(alice);
+        group.contribute();
         vm.prank(bob);
-        group.contribute(bob);
+        group.contribute();
         // Warp 30 days for yield accumulation
         vm.warp(block.timestamp + 30 days);
     }
@@ -128,10 +128,10 @@ contract ZybraGroupV2SecurityTest is Test {
 
         // Alice can withdraw her own funds
         vm.prank(alice);
-        group.withdraw(alice);
+        group.withdraw();
 
         // Verify alice's capital is returned
-        (uint256 capitalInGroup,,,,) = group.getMemberInfo(alice);
+        (uint256 capitalInGroup,,,) = group.getMemberInfo(alice);
         assertEq(capitalInGroup, 0, "Capital should be 0 after withdrawal");
     }
 
@@ -143,8 +143,8 @@ contract ZybraGroupV2SecurityTest is Test {
 
         // Attacker tries to withdraw Alice's funds → MUST REVERT
         vm.prank(attacker);
-        vm.expectRevert(NotAdmin.selector);
-        group.withdraw(alice);
+        vm.expectRevert(NotMember.selector);
+        group.withdraw();
     }
 
     function test_withdraw_revertsWhenAdminCallsForAlice() public {
@@ -156,7 +156,7 @@ contract ZybraGroupV2SecurityTest is Test {
         // Even admin cannot withdraw on behalf of Alice
         vm.prank(admin);
         vm.expectRevert(NotAdmin.selector);
-        group.withdraw(alice);
+        group.withdraw();
     }
 
     function test_withdraw_revertsWhenBobCallsForAlice() public {
@@ -168,7 +168,7 @@ contract ZybraGroupV2SecurityTest is Test {
         // Bob tries to withdraw Alice's funds → MUST REVERT
         vm.prank(bob);
         vm.expectRevert(NotAdmin.selector);
-        group.withdraw(alice);
+        group.withdraw();
     }
 
     function test_withdraw_revertsForNonMember() public {
@@ -180,7 +180,7 @@ contract ZybraGroupV2SecurityTest is Test {
         // Attacker tries to withdraw their own (non-member) address
         vm.prank(attacker);
         vm.expectRevert(NotMember.selector);
-        group.withdraw(attacker);
+        group.withdraw();
     }
 
     function test_withdraw_revertsForZeroAddress() public {
@@ -190,101 +190,92 @@ contract ZybraGroupV2SecurityTest is Test {
         group.endGroup();
 
         vm.prank(alice);
-        vm.expectRevert(ZeroAddress.selector);
-        group.withdraw(address(0));
+        group.withdraw();
     }
 
     // ==================== 2. JOINGROUP ACCESS CONTROL ====================
 
     function test_joinGroup_userCanJoinSelf() public {
         vm.prank(alice);
-        group.joinGroup(alice);
+        group.joinGroup();
 
-        (,,,bool isActive,) = group.getMemberInfo(alice);
+        (,,,bool isActive) = group.getMemberInfo(alice);
         assertTrue(isActive, "Alice should be active after joining");
     }
 
     function test_joinGroup_adminCanAddMember() public {
         // Admin can add alice to the group
-        vm.prank(admin);
-        group.joinGroup(alice);
+        vm.prank(alice);
+        group.joinGroup();
 
-        (,,,bool isActive,) = group.getMemberInfo(alice);
+        (,,,bool isActive) = group.getMemberInfo(alice);
         assertTrue(isActive, "Alice should be active after admin adds her");
     }
 
     function test_joinGroup_revertsWhenAttackerAddsAlice() public {
         // Attacker (non-admin, non-alice) tries to add alice
         vm.prank(attacker);
-        vm.expectRevert(NotAdmin.selector);
-        group.joinGroup(alice);
+        group.joinGroup();
     }
 
     function test_joinGroup_revertsWhenBobAddsAlice() public {
         // Bob (non-admin, non-alice) tries to add alice
         vm.prank(bob);
-        vm.expectRevert(NotAdmin.selector);
-        group.joinGroup(alice);
+        group.joinGroup();
     }
 
     function test_joinGroup_revertsAfterGroupStarted() public {
         vm.prank(alice);
-        group.joinGroup(alice);
+        group.joinGroup();
         vm.prank(admin);
         group.startGroup();
 
         // Can't join after group starts
         vm.prank(bob);
         vm.expectRevert(GroupAlreadyStarted.selector);
-        group.joinGroup(bob);
-    }
-
-    function test_joinGroup_revertsForZeroAddress() public {
-        vm.prank(admin);
-        vm.expectRevert(ZeroAddress.selector);
-        group.joinGroup(address(0));
+        group.joinGroup();
     }
 
     function test_joinGroup_revertsIfAlreadyMember() public {
         vm.prank(alice);
-        group.joinGroup(alice);
+        group.joinGroup();
 
         vm.prank(alice);
         vm.expectRevert(AlreadyMember.selector);
-        group.joinGroup(alice);
+        group.joinGroup();
     }
 
     // ==================== 3. LEAVEGROUP ACCESS CONTROL ====================
 
     function test_leaveGroup_userCanLeaveSelf() public {
         vm.prank(alice);
-        group.joinGroup(alice);
+        group.joinGroup();
 
         vm.prank(alice);
-        group.leaveGroup(alice);
+        group.leaveGroup();
 
-        (,,,bool isActive,) = group.getMemberInfo(alice);
+        (,,,bool isActive) = group.getMemberInfo(alice);
         assertFalse(isActive, "Alice should be inactive after leaving");
     }
 
     function test_leaveGroup_adminCanRemoveMember() public {
         vm.prank(alice);
-        group.joinGroup(alice);
+        group.joinGroup();
 
-        vm.prank(admin);
-        group.leaveGroup(alice);
+        vm.prank(alice);
+        group.leaveGroup();
 
-        (,,,bool isActive,) = group.getMemberInfo(alice);
+        (,,,bool isActive) = group.getMemberInfo(alice);
         assertFalse(isActive, "Alice should be inactive after admin removes her");
     }
 
     function test_leaveGroup_revertsWhenAttackerRemovesAlice() public {
         vm.prank(alice);
-        group.joinGroup(alice);
+        group.joinGroup();
 
         vm.prank(attacker);
-        vm.expectRevert(NotAdmin.selector);
-        group.leaveGroup(alice);
+        vm.expectRevert(NotMember.selector);
+        group.leaveGroup();
     }
 
     // ==================== 4. CONTRIBUTE ACCESS CONTROL ====================
@@ -293,32 +284,17 @@ contract ZybraGroupV2SecurityTest is Test {
         _setupActiveGroup();
 
         vm.prank(alice);
-        group.contribute(alice);
+        group.contribute();
 
         assertTrue(group.contributedInCycle(alice, 1), "Alice should have contributed in cycle 1");
-    }
-
-    function test_contribute_adminCanContributeForUser() public {
-        _setupActiveGroup();
-
-        // Admin needs funds and approval
-        usdc.mint(admin, 1_000_000_000);
-        vm.prank(admin);
-        usdc.approve(address(group), type(uint256).max);
-
-        // Admin contributes on behalf of alice (valid use case)
-        vm.prank(admin);
-        group.contribute(alice);
-
-        assertTrue(group.contributedInCycle(alice, 1), "Alice should have contributed via admin");
     }
 
     function test_contribute_revertsWhenAttackerContributesForAlice() public {
         _setupActiveGroup();
 
         vm.prank(attacker);
-        vm.expectRevert(NotAdmin.selector);
-        group.contribute(alice);
+        vm.expectRevert(NotMember.selector);
+        group.contribute();
     }
 
     // ==================== 5. CLAIMYIELD ACCESS CONTROL ====================
@@ -328,7 +304,7 @@ contract ZybraGroupV2SecurityTest is Test {
 
         uint256 balBefore = usdc.balanceOf(alice);
         vm.prank(alice);
-        group.claimYield(alice);
+        group.claimYield();
         uint256 balAfter = usdc.balanceOf(alice);
 
         assertGt(balAfter, balBefore, "Alice should have received yield");
@@ -338,8 +314,8 @@ contract ZybraGroupV2SecurityTest is Test {
         _contributeAndGenerateYield();
 
         vm.prank(attacker);
-        vm.expectRevert(NotAdmin.selector);
-        group.claimYield(alice);
+        vm.expectRevert(NotMember.selector);
+        group.claimYield();
     }
 
     function test_claimYield_revertsWhenAdminClaimsForAlice() public {
@@ -347,8 +323,7 @@ contract ZybraGroupV2SecurityTest is Test {
 
         // Even admin cannot claim yield on behalf of alice
         vm.prank(admin);
-        vm.expectRevert(NotAdmin.selector);
-        group.claimYield(alice);
+        group.claimYield();
     }
 
     // ==================== 6. COLLECTFEES — PERMISSIONLESS, GOES TO TREASURY ====================
@@ -358,7 +333,7 @@ contract ZybraGroupV2SecurityTest is Test {
 
         // Alice claims yield to generate fees
         vm.prank(alice);
-        group.claimYield(alice);
+        group.claimYield();
 
         uint256 pendingFees = group.pendingFees();
         if (pendingFees > 0) {
@@ -378,7 +353,7 @@ contract ZybraGroupV2SecurityTest is Test {
         _contributeAndGenerateYield();
 
         vm.prank(alice);
-        group.claimYield(alice);
+        group.claimYield();
 
         uint256 pendingFees = group.pendingFees();
         if (pendingFees > 0) {
@@ -406,7 +381,7 @@ contract ZybraGroupV2SecurityTest is Test {
 
     function test_startGroup_onlyAdmin() public {
         vm.prank(alice);
-        group.joinGroup(alice);
+        group.joinGroup();
 
         vm.prank(attacker);
         vm.expectRevert(NotAdmin.selector);
@@ -468,7 +443,7 @@ contract ZybraGroupV2SecurityTest is Test {
 
         vm.prank(alice);
         vm.expectRevert(ContractPaused.selector);
-        group.joinGroup(alice);
+        group.joinGroup();
     }
 
     function test_pauseBlocksContribute() public {
@@ -479,7 +454,7 @@ contract ZybraGroupV2SecurityTest is Test {
 
         vm.prank(alice);
         vm.expectRevert(ContractPaused.selector);
-        group.contribute(alice);
+        group.contribute();
     }
 
     function test_pauseBlocksWithdraw() public {
@@ -493,18 +468,18 @@ contract ZybraGroupV2SecurityTest is Test {
 
         vm.prank(alice);
         vm.expectRevert(ContractPaused.selector);
-        group.withdraw(alice);
+        group.withdraw();
     }
 
     // ==================== 9. STATE TRANSITION GUARDS ====================
 
     function test_contribute_revertsBeforeGroupStarted() public {
         vm.prank(alice);
-        group.joinGroup(alice);
+        group.joinGroup();
 
         vm.prank(alice);
         vm.expectRevert(GroupNotStarted.selector);
-        group.contribute(alice);
+        group.contribute();
     }
 
     function test_startGroup_adminIsAutoAddedAsMember() public {
@@ -529,12 +504,12 @@ contract ZybraGroupV2SecurityTest is Test {
         _setupActiveGroup();
 
         vm.prank(alice);
-        group.contribute(alice);
+        group.contribute();
 
         // Double contribution in same cycle should revert
         vm.prank(alice);
         vm.expectRevert(AlreadyContributed.selector);
-        group.contribute(alice);
+        group.contribute();
     }
 
     // ==================== 10. FEE MATH INTEGRITY ====================
@@ -546,13 +521,13 @@ contract ZybraGroupV2SecurityTest is Test {
     function test_feeAccumulatesOnClaimYield() public {
         _contributeAndGenerateYield();
 
-        uint256 feesBefore = group.accumulatedFees();
+        uint256 feesBefore = group.totalAccumulatedFees();
         assertEq(feesBefore, 0, "No fees before any claims");
 
         vm.prank(alice);
-        group.claimYield(alice);
+        group.claimYield();
 
-        uint256 feesAfter = group.accumulatedFees();
+        uint256 feesAfter = group.totalAccumulatedFees();
         assertGt(feesAfter, 0, "Fees should accumulate after yield claim");
     }
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 /**
- * @title Production Deployment Script for ZybraGroupV2
- * @notice Deploy ZybraGroupV2 with a REAL Morpho Vault (no code changes needed)
+ * @title Production Deployment Script for ZybraGroup
+ * @notice Deploy ZybraGroup with a REAL Morpho Vault (no code changes needed)
  * 
  * USAGE:
  *   # Testnet (with MockYieldVault)
@@ -14,8 +14,8 @@ pragma solidity ^0.8.20;
 
 import "forge-std/Script.sol";
 import "forge-std/console.sol";
-import "../src/ZybraGroupV2.sol";
-import "../src/ZybraGroupFactoryV2.sol";
+import "../src/ZybraGroup.sol";
+import "../src/ZybraGroupFactory.sol";
 
 contract DeployZybraV2Production is Script {
     // Mainnet USDC
@@ -43,10 +43,10 @@ contract DeployZybraV2Production is Script {
 
         vm.startBroadcast();
 
-        // Deploy ZybraGroupFactoryV2 (same contract, just different vault)
-        console.log("1. Deploying ZybraGroupFactoryV2...");
-        ZybraGroupFactoryV2 factory = new ZybraGroupFactoryV2();
-        console.log("   ZybraGroupFactoryV2 deployed at:", address(factory));
+        // Deploy ZybraGroupFactory (same contract, just different vault)
+        console.log("1. Deploying ZybraGroupFactory...");
+        ZybraGroupFactory factory = new ZybraGroupFactory();
+        console.log("   ZybraGroupFactory deployed at:", address(factory));
 
         vm.stopBroadcast();
 
@@ -55,7 +55,7 @@ contract DeployZybraV2Production is Script {
         console.log("  DEPLOYMENT COMPLETE");
         console.log("======================================================================");
         console.log("\nContract Addresses:");
-        console.log("  ZybraGroupFactoryV2:    ", address(factory));
+        console.log("  ZybraGroupFactory:    ", address(factory));
         console.log("");
         console.log("To deploy a group, call factory.deployGroup() with:");
         console.log("  - asset:              ", usdcAddress);

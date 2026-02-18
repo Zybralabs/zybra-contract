@@ -5,18 +5,18 @@ import {Test} from "forge-std/Test.sol";
 import {console} from "forge-std/console.sol";
 import {Treasury} from "src/treasury/Treasury.sol";
 import {FeeCollector} from "src/treasury/FeeCollector.sol";
-import {ZybraGroupV2Refactored} from "src/ZybraGroupV2.sol";
+import {ZybraGroup} from "src/ZybraGroup.sol";
 import {IMorphoVaultV2} from "src/interfaces/IMorphoVaultV2.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
  * @title Treasury Architecture Mainnet Fork Tests
  * @author Senior DeFi Engineer
- * @notice Production-grade tests for Treasury + FeeCollector + ZybraGroupV2 integration
+ * @notice Production-grade tests for Treasury + FeeCollector + ZybraGroup integration
  * @dev Tests against real Morpho Vault V2 on Ethereum mainnet
  *
  * ARCHITECTURE UNDER TEST:
- *   ZybraGroupV2 (FeeSource) → FeeCollector → Treasury
+ *   ZybraGroup (FeeSource) → FeeCollector → Treasury
  *
  * TEST COVERAGE:
  *   1. Treasury role-based access control
@@ -35,7 +35,7 @@ contract TreasuryArchitectureTest is Test {
 
     Treasury public treasury;
     FeeCollector public feeCollector;
-    ZybraGroupV2Refactored public group;
+    ZybraGroup public group;
 
     IMorphoVaultV2 public vault;
     IERC20 public usdc;
@@ -81,8 +81,8 @@ contract TreasuryArchitectureTest is Test {
         vm.prank(governance);
         treasury.grantRole(collectorRole, address(feeCollector));
 
-        // Deploy ZybraGroupV2 with Treasury as fee recipient
-        group = new ZybraGroupV2Refactored(
+        // Deploy ZybraGroup with Treasury as fee recipient
+        group = new ZybraGroup(
             USDC,
             CONTRIBUTION,
             CYCLE,
@@ -229,13 +229,14 @@ contract TreasuryArchitectureTest is Test {
 
     function test_Integration_FeeFlowToTreasury() public {
         // Setup: Join and start group
-        group.joinGroup(user1);
+        vm.prank(user1);
+        group.joinGroup();
         vm.prank(admin);
         group.startGroup();
 
         // Contribute
         vm.prank(user1);
-        group.contribute(user1);
+        group.contribute();
 
         // Wait for yield to accrue
         vm.warp(block.timestamp + 90 days);
@@ -246,7 +247,7 @@ contract TreasuryArchitectureTest is Test {
 
         // Claim yield (this accumulates fees in group)
         vm.prank(user1);
-        group.claimYield(user1);
+        group.claimYield();
 
         uint256 pendingFees = group.pendingFees();
         console.log("Pending fees in group:", pendingFees);
@@ -283,7 +284,7 @@ contract TreasuryArchitectureTest is Test {
 
     function test_Integration_MultipleGroups() public {
         // Deploy second group
-        ZybraGroupV2Refactored group2 = new ZybraGroupV2Refactored(
+        ZybraGroup group2 = new ZybraGroup(
             USDC,
             CONTRIBUTION,
             CYCLE,

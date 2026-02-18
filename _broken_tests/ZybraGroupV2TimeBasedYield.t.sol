@@ -2,18 +2,18 @@
 pragma solidity ^0.8.18;
 
 import "forge-std/Test.sol";
-import {ZybraGroupV2Refactored} from "src/ZybraGroupV2.sol";
-import {ZybraGroupFactoryV2} from "src/ZybraGroupFactoryV2.sol";
+import {ZybraGroup} from "src/ZybraGroup.sol";
+import {ZybraGroupFactory} from "src/ZybraGroupFactory.sol";
 import {MockYieldVault} from "src/mocks/MockYieldVault.sol";
 import {MockERC20} from "src/mocks/MockERC20.sol";
 
 /**
- * @title ZybraGroupV2TimeBasedYieldTest
- * @notice Test that ZybraGroupV2 sees yield from time-based MockYieldVault after contributions
+ * @title ZybraGroupTimeBasedYieldTest
+ * @notice Test that ZybraGroup sees yield from time-based MockYieldVault after contributions
  */
-contract ZybraGroupV2TimeBasedYieldTest is Test {
-    ZybraGroupFactoryV2 public factory;
-    ZybraGroupV2Refactored public group;
+contract ZybraGroupTimeBasedYieldTest is Test {
+    ZybraGroupFactory public factory;
+    ZybraGroup public group;
     MockYieldVault public vault;
     MockERC20 public usdc;
 
@@ -44,7 +44,7 @@ contract ZybraGroupV2TimeBasedYieldTest is Test {
         vault.setAnnualYieldRate(5000); // 50% APY for fast testing
 
         // Deploy factory
-        factory = new ZybraGroupFactoryV2();
+        factory = new ZybraGroupFactory();
 
         // Deploy group via factory
         address groupAddress = factory.deployGroup(
@@ -57,7 +57,7 @@ contract ZybraGroupV2TimeBasedYieldTest is Test {
             treasury
         );
         
-        group = ZybraGroupV2Refactored(groupAddress);
+        group = ZybraGroup(groupAddress);
 
         // Mint USDC to users
         usdc.mint(alice, 1_000_000_000); // 1000 USDC
@@ -75,9 +75,9 @@ contract ZybraGroupV2TimeBasedYieldTest is Test {
         
         // Alice and Bob join
         vm.prank(alice);
-        group.joinGroup(alice);
+        group.joinGroup();
         vm.prank(bob);
-        group.joinGroup(bob);
+        group.joinGroup();
 
         // Start group
         vm.prank(admin);
@@ -85,8 +85,8 @@ contract ZybraGroupV2TimeBasedYieldTest is Test {
 
         // Alice contributes
         vm.prank(alice);
-        group.contribute(alice);
-        
+        group.contribute();
+
         console.log("\nAfter Alice's contribution:");
         (,,,,uint256 totalCapital0, uint256 totalYield0,) = group.getGroupStatus();
         console.log("  Total Capital:", totalCapital0);
@@ -130,9 +130,9 @@ contract ZybraGroupV2TimeBasedYieldTest is Test {
         
         // Alice and Bob join
         vm.prank(alice);
-        group.joinGroup(alice);
+        group.joinGroup();
         vm.prank(bob);
-        group.joinGroup(bob);
+        group.joinGroup();
 
         // Start group
         vm.prank(admin);
@@ -140,10 +140,10 @@ contract ZybraGroupV2TimeBasedYieldTest is Test {
 
         // Both contribute in cycle 0
         vm.prank(alice);
-        group.contribute(alice);
-        
+        group.contribute();
+
         vm.prank(bob);
-        group.contribute(bob);
+        group.contribute();
         
         console.log("\nBoth Alice and Bob contributed 100 USDC each (total 200 USDC)");
         (,,,,uint256 totalCapital,,) = group.getGroupStatus();
@@ -170,9 +170,9 @@ contract ZybraGroupV2TimeBasedYieldTest is Test {
         
         // Alice and Bob join
         vm.prank(alice);
-        group.joinGroup(alice);
+        group.joinGroup();
         vm.prank(bob);
-        group.joinGroup(bob);
+        group.joinGroup();
 
         // Start group
         vm.prank(admin);
@@ -180,25 +180,25 @@ contract ZybraGroupV2TimeBasedYieldTest is Test {
 
         // Alice contributes
         vm.prank(alice);
-        group.contribute(alice);
-        
+        group.contribute();
+
         // Warp 30 days
         vm.warp(block.timestamp + 30 days);
-        
+
         console.log("\nAfter 30 days:");
         (,,,,, uint256 totalYield,) = group.getGroupStatus();
         console.log("  Total Yield:", totalYield);
         assertGt(totalYield, 0, "Should have yield after 30 days");
-        
+
         // Check Alice's pending yield
-        (,uint256 pendingYield,,,) = group.getMemberInfo(alice);
+        (,uint256 pendingYield,,) = group.getMemberInfo(alice);
         console.log("  Alice's Pending Yield:", pendingYield);
         assertGt(pendingYield, 0, "Alice should have pending yield");
-        
+
         // Alice claims yield
         uint256 aliceBalanceBefore = usdc.balanceOf(alice);
         vm.prank(alice);
-        group.claimYield(alice);
+        group.claimYield();
         uint256 aliceBalanceAfter = usdc.balanceOf(alice);
         
         uint256 claimed = aliceBalanceAfter - aliceBalanceBefore;
@@ -223,19 +223,19 @@ contract ZybraGroupV2TimeBasedYieldTest is Test {
             treasury
         );
         
-        ZybraGroupV2Refactored smallGroup = ZybraGroupV2Refactored(smallGroupAddress);
+        ZybraGroup smallGroup = ZybraGroup(smallGroupAddress);
 
         vm.prank(alice);
         usdc.approve(address(smallGroup), type(uint256).max);
 
         vm.prank(alice);
-        smallGroup.joinGroup(alice);
+        smallGroup.joinGroup();
 
         vm.prank(admin);
         smallGroup.startGroup();
 
         vm.prank(alice);
-        smallGroup.contribute(alice);
+        smallGroup.contribute();
         
         console.log("\nAlice contributed 24 USDC");
         
@@ -264,64 +264,56 @@ contract ZybraGroupV2TimeBasedYieldTest is Test {
 
         // Alice joins + start group
         vm.prank(alice);
-        group.joinGroup(alice);
+        group.joinGroup();
         vm.prank(admin);
         group.startGroup();
 
         // Attacker tries to force Alice to contribute
         vm.prank(attacker);
-        vm.expectRevert(ZybraGroupV2Refactored.NotAdmin.selector);
-        group.contribute(alice);
+        vm.expectRevert(ZybraGroup.NotMember.selector);
+        group.contribute();
 
         console.log("[PASS] Unauthorized contribute reverted");
     }
 
-    function test_ContributeSuccess_AdminOnBehalf() public {
-        console.log("\n=== Test: Admin can contribute on behalf of user ===");
+    function test_ContributeSuccess_AliceSelf() public {
+        console.log("\n=== Test: Alice can contribute for herself ===");
 
         vm.prank(alice);
-        group.joinGroup(alice);
+        group.joinGroup();
         vm.prank(admin);
         group.startGroup();
 
-        // Admin contributes on behalf of Alice (allowed)
-        vm.prank(admin);
-        group.contribute(alice);
+        // Alice contributes for herself
+        vm.prank(alice);
+        group.contribute();
 
         (,,,,uint256 totalCapital,,) = group.getGroupStatus();
-        assertEq(totalCapital, CONTRIBUTION, "Admin contribution on behalf should succeed");
-        console.log("[PASS] Admin contribute on behalf works");
+        assertEq(totalCapital, CONTRIBUTION, "Alice contribution should succeed");
+        console.log("[PASS] Alice contribute works");
     }
 
-    function test_JoinGroupRevert_UnauthorizedCaller() public {
-        console.log("\n=== Test: joinGroup() reverts for unauthorized caller ===");
+    function test_JoinGroupRevert_NonMemberContribute() public {
+        console.log("\n=== Test: joinGroup() - non-member cannot contribute ===");
 
         address attacker = makeAddr("attacker");
 
-        // Attacker tries to add alice to the group
+        // Attacker joins themselves (this is now allowed since joinGroup uses msg.sender)
         vm.prank(attacker);
-        vm.expectRevert(ZybraGroupV2Refactored.NotAdmin.selector);
-        group.joinGroup(alice);
+        group.joinGroup();
 
-        console.log("[PASS] Unauthorized joinGroup reverted");
-    }
+        // Verify attacker joined
+        (,,,bool isActive) = group.getMemberInfo(attacker);
+        assertTrue(isActive, "Attacker should be active after self-join");
 
-    function test_JoinGroupSuccess_AdminOnBehalf() public {
-        console.log("\n=== Test: Admin can join users on their behalf ===");
-
-        // Admin adds alice
-        vm.prank(admin);
-        group.joinGroup(alice);
-
-        assertEq(group.activeMembersCount(), 2, "Should have admin + alice");
-        console.log("[PASS] Admin joinGroup on behalf works");
+        console.log("[PASS] joinGroup uses msg.sender correctly");
     }
 
     function test_JoinGroupSuccess_SelfJoin() public {
         console.log("\n=== Test: User can join themselves ===");
 
         vm.prank(alice);
-        group.joinGroup(alice);
+        group.joinGroup();
 
         assertEq(group.activeMembersCount(), 2, "Should have admin + alice");
         console.log("[PASS] Self-join works");
