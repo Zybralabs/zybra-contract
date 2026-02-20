@@ -72,7 +72,7 @@
       "contractAddress": "0xeba97f1ba3993a3167dd77292f27d5dcc42dec69",
       "function": null,
       "arguments": [
-        "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
+        "0x9d60E70d6d164708397E7F0aBa139589c7447255",
         "Zybra Yield Vault",
         "zyUSDC",
         "6"
@@ -134,7 +134,7 @@
       "contractAddress": "0xfa736aceb9cc332b8de6442a2bb7d36546eb1115",
       "function": "deployGroup(address,uint256,uint256,uint256,address,address,address)",
       "arguments": [
-        "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
+        "0x9d60E70d6d164708397E7F0aBa139589c7447255",
         "100000000",
         "604800",
         "4",

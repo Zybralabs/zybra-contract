@@ -18,7 +18,7 @@ import {MockERC20} from "src/mocks/MockERC20.sol";
  *   4. contribute(address user) — only user themselves OR admin
  *   5. claimYield(address user) — only user themselves
  *   6. collectFees() — permissionless, fees go to treasury
- *   7. admin-only functions: startGroup, endGroup, pause, unpause, setTreasury
+ *   7. admin-only functions: startGroup, endGroup, pause, unpause
  *   8. reentrancy guard coverage
  *   9. state transition guards
  */
@@ -49,6 +49,7 @@ contract ZybraGroupSecurityTest is Test {
     error GroupAlreadyStarted();
     error GroupNotStarted();
     error GroupAlreadyEnded();
+    error GroupNotExpired();
     error InsufficientMembers();
     error AlreadyContributed();
     error NothingToClaim();
@@ -147,28 +148,35 @@ contract ZybraGroupSecurityTest is Test {
         group.withdraw();
     }
 
-    function test_withdraw_revertsWhenAdminCallsForAlice() public {
+    function test_withdraw_revertsWhenAdminWithdrawsWithZeroCapital() public {
         _contributeAndGenerateYield();
         vm.warp(block.timestamp + CYCLE_DURATION * TOTAL_CYCLES + 1);
         vm.prank(admin);
         group.endGroup();
 
-        // Even admin cannot withdraw on behalf of Alice
+        // Admin is a member but never contributed (capital=0, yield=0)
+        // withdraw() reverts with InvalidAmount, not NotAdmin
         vm.prank(admin);
-        vm.expectRevert(NotAdmin.selector);
+        vm.expectRevert(InvalidAmount.selector);
         group.withdraw();
     }
 
-    function test_withdraw_revertsWhenBobCallsForAlice() public {
+    function test_withdraw_bobWithdrawsOwnFundsNotAlice() public {
         _contributeAndGenerateYield();
         vm.warp(block.timestamp + CYCLE_DURATION * TOTAL_CYCLES + 1);
         vm.prank(admin);
         group.endGroup();
 
-        // Bob tries to withdraw Alice's funds → MUST REVERT
+        // Bob calls withdraw() — withdraws BOB's own funds (msg.sender based)
+        uint256 bobBefore = usdc.balanceOf(bob);
         vm.prank(bob);
-        vm.expectRevert(NotAdmin.selector);
         group.withdraw();
+        uint256 bobAfter = usdc.balanceOf(bob);
+        assertGt(bobAfter, bobBefore, "Bob should receive his funds");
+
+        // Bob's capital is cleared
+        (uint256 cap,,,) = group.getMemberInfo(bob);
+        assertEq(cap, 0, "Bob capital cleared");
     }
 
     function test_withdraw_revertsForNonMember() public {
@@ -318,11 +326,12 @@ contract ZybraGroupSecurityTest is Test {
         group.claimYield();
     }
 
-    function test_claimYield_revertsWhenAdminClaimsForAlice() public {
+    function test_claimYield_revertsWhenAdminHasNothingToClaim() public {
         _contributeAndGenerateYield();
 
-        // Even admin cannot claim yield on behalf of alice
+        // Admin is a member but never contributed, so no yield to claim
         vm.prank(admin);
+        vm.expectRevert(NothingToClaim.selector);
         group.claimYield();
     }
 
@@ -370,11 +379,12 @@ contract ZybraGroupSecurityTest is Test {
         }
     }
 
-    function test_collectFees_revertsWhenNoFees() public {
+    function test_collectFees_returnsZeroWhenNoFees() public {
         _setupActiveGroup();
 
-        vm.expectRevert(InvalidAmount.selector);
-        group.collectFees();
+        // collectFees returns 0 when no fees (auto-collect may have taken them)
+        uint256 fees = group.collectFees();
+        assertEq(fees, 0, "Should return 0 when no fees");
     }
 
     // ==================== 7. ADMIN-ONLY FUNCTIONS ====================
@@ -388,12 +398,14 @@ contract ZybraGroupSecurityTest is Test {
         group.startGroup();
     }
 
-    function test_endGroup_onlyAdmin() public {
+    function test_endGroup_nonAdminRevertsBeforeGracePeriod() public {
         _setupActiveGroup();
+        // Warp past cycles but NOT past grace period
         vm.warp(block.timestamp + CYCLE_DURATION * TOTAL_CYCLES + 1);
 
+        // Non-admin gets GroupNotExpired (within grace), not NotAdmin
         vm.prank(attacker);
-        vm.expectRevert(NotAdmin.selector);
+        vm.expectRevert(GroupNotExpired.selector);
         group.endGroup();
     }
 
@@ -412,27 +424,9 @@ contract ZybraGroupSecurityTest is Test {
         group.unpause();
     }
 
-    function test_setTreasury_onlyAdmin() public {
-        address newTreasury = makeAddr("newTreasury");
-
-        vm.prank(attacker);
-        vm.expectRevert(NotAdmin.selector);
-        group.setTreasury(newTreasury);
-    }
-
-    function test_setTreasury_revertsZeroAddress() public {
-        vm.prank(admin);
-        vm.expectRevert(ZeroAddress.selector);
-        group.setTreasury(address(0));
-    }
-
-    function test_setTreasury_updatesTreasury() public {
-        address newTreasury = makeAddr("newTreasury");
-
-        vm.prank(admin);
-        group.setTreasury(newTreasury);
-
-        assertEq(group.treasury(), newTreasury, "Treasury should be updated");
+    function test_treasury_isImmutable() public view {
+        // Treasury is set at deployment via factory — no admin can change it
+        assertEq(group.treasury(), treasury, "Treasury should be immutable from deployment");
     }
 
     // ==================== 8. PAUSE GUARD ====================
@@ -482,14 +476,21 @@ contract ZybraGroupSecurityTest is Test {
         group.contribute();
     }
 
-    function test_startGroup_adminIsAutoAddedAsMember() public {
-        // The constructor auto-adds admin as a member
-        // So startGroup() should succeed with just admin
+    function test_startGroup_requiresMinMembers() public {
+        // Admin is auto-added (1 member), but MIN_MEMBERS = 2
+        // So startGroup() must fail with only admin
+        vm.prank(admin);
+        vm.expectRevert();
+        group.startGroup();
+
+        // After adding another member, it should succeed
+        vm.prank(alice);
+        group.joinGroup();
         vm.prank(admin);
         group.startGroup();
 
         (bool started,,,,,,) = group.getGroupStatus();
-        assertTrue(started, "Group should start with admin as sole member");
+        assertTrue(started, "Group should start with admin + alice");
     }
 
     function test_startGroup_revertsIfAlreadyStarted() public {
@@ -514,8 +515,8 @@ contract ZybraGroupSecurityTest is Test {
 
     // ==================== 10. FEE MATH INTEGRITY ====================
 
-    function test_protocolFeeIs1Percent() public {
-        assertEq(group.PROTOCOL_FEE_BPS(), 100, "Protocol fee should be 100 bps (1%)");
+    function test_protocolFeeIs10Percent() public {
+        assertEq(group.PROTOCOL_FEE_BPS(), 1000, "Protocol fee should be 1000 bps (10%)");
     }
 
     function test_feeAccumulatesOnClaimYield() public {

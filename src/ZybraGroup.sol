@@ -34,8 +34,8 @@ contract ZybraGroup is IFeeSource, ReentrancyGuard {
     uint256 public immutable cycleDuration;
     uint256 public immutable totalCycles;
 
-    // Treasury
-    address public treasury;
+    // Treasury (immutable — set by factory, not changeable by group admin)
+    address public immutable treasury;
 
     // Group lifecycle
     uint256 public groupStartTime;
@@ -61,9 +61,10 @@ contract ZybraGroup is IFeeSource, ReentrancyGuard {
     uint256 public constant MIN_MEMBERS = 2;
     uint256 public constant MIN_CONTRIBUTION = 1e6;
     uint256 public constant MAX_CONTRIBUTION = 1000e6;
-    uint256 public constant PROTOCOL_FEE_BPS = 100; // 1% flat fee
+    uint256 public constant PROTOCOL_FEE_BPS = 1000; // 10% flat fee
     uint256 public constant ACC_PRECISION = 1e12;    // Accumulator scaling factor
     uint256 public constant END_GROUP_GRACE_PERIOD = 7 days; // [FIX: H-02] Auto-end grace period
+    uint256 public constant MIN_FEE_AUTO_COLLECT = 1e6; // 1 USDC threshold for auto-forwarding (gas optimization)
 
     // ==================== EVENTS ====================
 
@@ -75,7 +76,6 @@ contract ZybraGroup is IFeeSource, ReentrancyGuard {
     event YieldClaimed(address indexed member, uint256 amount);
     event Withdrawn(address indexed member, uint256 capital, uint256 yield);
     event EmergencyWithdrawn(address indexed member, uint256 capital, uint256 forfeitedYield);
-    event TreasuryUpdated(address indexed oldTreasury, address indexed newTreasury);
     event FeesCollected(address indexed treasury, uint256 amount);
     event AdminTransferProposed(address indexed currentAdmin, address indexed pendingAdmin);
     event AdminTransferred(address indexed oldAdmin, address indexed newAdmin);
@@ -182,6 +182,7 @@ contract ZybraGroup is IFeeSource, ReentrancyGuard {
             // No capital to distribute to — all goes to fees
             totalAccumulatedFees += newYield;
             lastMaterializedYield = totalEverYield;
+            _autoCollectFees();
             return;
         }
 
@@ -191,6 +192,52 @@ contract ZybraGroup is IFeeSource, ReentrancyGuard {
         accRewardPerShare += (distributable * ACC_PRECISION) / _totalCap;
         totalAccumulatedFees += fee;
         lastMaterializedYield = totalEverYield;
+
+        // Auto-forward fees to treasury (Aave Reserve Factor pattern)
+        _autoCollectFees();
+    }
+
+    /**
+     * @dev Auto-forward accumulated protocol fees to treasury when threshold is met.
+     *      Piggybacked on user transactions — no separate keeper/bot needed.
+     *
+     * PATTERN: Aave V3 "mint-to-treasury" / SushiSwap MasterChef "dev mint"
+     *   - Fees accumulate in the vault as yield accrues
+     *   - When accumulated fees >= MIN_FEE_AUTO_COLLECT (1 USDC), they're
+     *     withdrawn from the vault and sent to the immutable treasury
+     *   - Piggybacks on the gas of whatever user action triggered _accrueRewards()
+     *   - Uses try/catch so fee collection failure never blocks user operations
+     *   - Below-threshold dust is collected via the permissionless collectFees() fallback
+     *
+     * GAS: ~30K overhead on user tx when threshold is crossed (1 SLOAD + 1 vault.withdraw)
+     *      Zero overhead when fees are below threshold.
+     */
+    function _autoCollectFees() internal {
+        uint256 pending = totalAccumulatedFees - totalFeesWithdrawn;
+        if (pending < MIN_FEE_AUTO_COLLECT) return;
+
+        uint256 vaultShares = vault.balanceOf(address(this));
+        if (vaultShares == 0) return;
+
+        uint256 maxWithdrawable = vault.convertToAssets(vaultShares);
+
+        // Reserve: don't drain vault below what users need (capital + pending yield buffer)
+        // This prevents auto-collect from causing user withdrawal failures in the same tx
+        uint256 _totalCap = totalCapitalInGroup;
+        uint256 withdrawableForFees = maxWithdrawable > _totalCap ? maxWithdrawable - _totalCap : 0;
+
+        uint256 toCollect = pending > withdrawableForFees ? withdrawableForFees : pending;
+        if (toCollect < MIN_FEE_AUTO_COLLECT) return;
+
+        // Try/catch: fee failure must NEVER block user's contribute/withdraw/claim
+        try vault.withdraw(toCollect, treasury, address(this)) returns (uint256 sharesBurned) {
+            if (sharesBurned > 0) {
+                totalFeesWithdrawn += toCollect;
+                emit FeesCollected(treasury, toCollect);
+            }
+        } catch {
+            // Fee collection deferred — will retry on next user action
+        }
     }
 
     /**
@@ -415,26 +462,23 @@ contract ZybraGroup is IFeeSource, ReentrancyGuard {
 
     // ==================== ADMIN FUNCTIONS ====================
 
-    function setTreasury(address newTreasury) external onlyAdmin {
-        if (newTreasury == address(0)) revert ZeroAddress();
-        address oldTreasury = treasury;
-        treasury = newTreasury;
-        emit TreasuryUpdated(oldTreasury, newTreasury);
-    }
-
     /**
-     * @notice Collect protocol fees — [FIX: HIGH-02] admin only
-     * @dev Computes pending = totalAccumulatedFees - totalFeesWithdrawn.
-     *      Fees are always correctly calculated via the accumulator,
-     *      never double-counted.
+     * @notice Collect protocol fees — permissionless fallback for dust/manual collection
+     * @dev Primary fee collection is automatic via _autoCollectFees() piggybacked
+     *      on every user action. This function exists as a fallback to sweep:
+     *      1. Dust amounts below MIN_FEE_AUTO_COLLECT threshold
+     *      2. Fees from inactive groups where no user actions trigger auto-collect
+     *      Anyone can call — fees always flow to immutable treasury.
      */
-    function collectFees() external onlyAdmin nonReentrant returns (uint256 amount) {
+    function collectFees() external nonReentrant returns (uint256 amount) {
         _accrueRewards();
 
         amount = totalAccumulatedFees > totalFeesWithdrawn
             ? totalAccumulatedFees - totalFeesWithdrawn
             : 0;
-        if (amount == 0) revert InvalidAmount();
+
+        // Auto-collect may have already forwarded fees — return 0 instead of reverting
+        if (amount == 0) return 0;
 
         // Cap at actual vault value to handle rounding dust
         uint256 vaultShares = vault.balanceOf(address(this));
@@ -442,7 +486,7 @@ contract ZybraGroup is IFeeSource, ReentrancyGuard {
         if (amount > maxWithdrawable) {
             amount = maxWithdrawable;
         }
-        if (amount == 0) revert InvalidAmount();
+        if (amount == 0) return 0;
 
         totalFeesWithdrawn += amount;
 

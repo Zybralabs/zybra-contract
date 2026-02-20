@@ -7,7 +7,7 @@
       "contractAddress": "0xa9222306bdd09074ebdb2da7fc6a6c8f1dff218d",
       "function": "deployGroup(address,uint256,uint256,address,address,uint256)",
       "arguments": [
-        "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
+        "0x9d60E70d6d164708397E7F0aBa139589c7447255",
         "10000000",
         "4",
         "0x6e0Ee480C539f7B78c8c3EE82DDEe4D48B26b1fd",
@@ -39,7 +39,7 @@
       "contractAddress": "0xa9222306bdd09074ebdb2da7fc6a6c8f1dff218d",
       "function": "deployGroup(address,uint256,uint256,address,address,uint256)",
       "arguments": [
-        "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
+        "0x9d60E70d6d164708397E7F0aBa139589c7447255",
         "50000000",
         "8",
         "0x6e0Ee480C539f7B78c8c3EE82DDEe4D48B26b1fd",

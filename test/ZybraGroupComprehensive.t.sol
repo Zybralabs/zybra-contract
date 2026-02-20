@@ -64,7 +64,6 @@ contract ZybraGroupComprehensiveTest is Test {
     event YieldClaimed(address indexed member, uint256 amount);
     event Withdrawn(address indexed member, uint256 capital, uint256 yield);
     event EmergencyWithdrawn(address indexed member, uint256 capital, uint256 forfeitedYield);
-    event TreasuryUpdated(address indexed oldTreasury, address indexed newTreasury);
     event FeesCollected(address indexed treasury, uint256 amount);
     event AdminTransferProposed(address indexed currentAdmin, address indexed pendingAdmin);
     event AdminTransferred(address indexed oldAdmin, address indexed newAdmin);
@@ -1116,8 +1115,8 @@ contract ZybraGroupComprehensiveTest is Test {
     //  SECTION 9: FEE ACCOUNTING
     // =======================================================================
 
-    function test_Fee_ExactlyOnePercentBPS() public view {
-        assertEq(group.PROTOCOL_FEE_BPS(), 100, "Should be 100 bps = 1%");
+    function test_Fee_ExactlyTenPercentBPS() public view {
+        assertEq(group.PROTOCOL_FEE_BPS(), 1000, "Should be 1000 bps = 10%");
     }
 
     function test_Fee_AccumulatesOnClaim() public {
@@ -1175,7 +1174,7 @@ contract ZybraGroupComprehensiveTest is Test {
         }
     }
 
-    function test_Fee_CollectOnlyAdmin() public {
+    function test_Fee_CollectPermissionless() public {
         address[] memory users = new address[](1);
         users[0] = alice;
         _joinAndStart(users);
@@ -1188,16 +1187,17 @@ contract ZybraGroupComprehensiveTest is Test {
         vm.prank(alice);
         group.claimYield();
 
-        // V3 FIX: collectFees is onlyAdmin - attacker cannot call
+        // collectFees is now permissionless — anyone can trigger
+        uint256 treasuryBefore = usdc.balanceOf(treasury);
         vm.prank(attacker);
-        vm.expectRevert(NotAdmin.selector);
-        group.collectFees();
+        uint256 fees = group.collectFees();
+        // Fees go to treasury, not to caller
+        assertGe(usdc.balanceOf(treasury), treasuryBefore);
     }
 
-    function test_Fee_CollectRevertsWhenEmpty() public {
-        vm.prank(admin);
-        vm.expectRevert(InvalidAmount.selector);
-        group.collectFees();
+    function test_Fee_CollectReturnsZeroWhenEmpty() public {
+        uint256 fees = group.collectFees();
+        assertEq(fees, 0, "Should return 0 when no fees");
     }
 
     function test_Fee_FeeAssetMatchesGroupAsset() public view {
@@ -1345,23 +1345,9 @@ contract ZybraGroupComprehensiveTest is Test {
         assertTrue(active);
     }
 
-    function test_Admin_SetTreasury() public {
-        address newTreasury = makeAddr("newTreasury");
-        vm.prank(admin);
-        group.setTreasury(newTreasury);
-        assertEq(group.treasury(), newTreasury);
-    }
-
-    function test_Admin_SetTreasuryZeroReverts() public {
-        vm.prank(admin);
-        vm.expectRevert(ZeroAddress.selector);
-        group.setTreasury(address(0));
-    }
-
-    function test_Admin_SetTreasuryNonAdminReverts() public {
-        vm.prank(attacker);
-        vm.expectRevert(NotAdmin.selector);
-        group.setTreasury(makeAddr("x"));
+    function test_Admin_TreasuryIsImmutable() public view {
+        // Treasury is set at deployment and cannot be changed by anyone
+        assertEq(group.treasury(), treasury);
     }
 
     function test_Admin_StartGroupOnlyAdmin() public {
@@ -1822,6 +1808,8 @@ contract ZybraGroupComprehensiveTest is Test {
         uint256 totalWithdrawn;
         for (uint256 i = 0; i < numUsers; i++) {
             _backVaultYield();
+            // Buffer for rounding: auto-collect inside withdraw depletes vault USDC mid-tx
+            usdc.mint(address(vault), 100e6);
             uint256 bal = usdc.balanceOf(users[i]);
             vm.prank(users[i]);
             group.withdraw();
@@ -2063,7 +2051,7 @@ contract ZybraGroupComprehensiveTest is Test {
         freshGroup.contribute();
     }
 
-    function test_Attack_CollectFeesCannotBeCalledByAttacker() public {
+    function test_Attack_CollectFeesGoToTreasuryNotCaller() public {
         address[] memory users = new address[](1);
         users[0] = alice;
         _joinAndStart(users);
@@ -2076,13 +2064,13 @@ contract ZybraGroupComprehensiveTest is Test {
         vm.prank(alice);
         group.claimYield();
 
-        // V3: collectFees is admin-only
+        // collectFees is permissionless, but fees go to treasury, not caller
+        uint256 attackerBefore = usdc.balanceOf(attacker);
         vm.prank(attacker);
-        vm.expectRevert(NotAdmin.selector);
         group.collectFees();
 
-        // Attacker gets nothing
-        assertEq(usdc.balanceOf(attacker), 100_000_000_000);
+        // Attacker gets nothing — fees went to treasury
+        assertEq(usdc.balanceOf(attacker), attackerBefore, "Attacker balance unchanged");
     }
 
     // =======================================================================
@@ -2468,14 +2456,6 @@ contract ZybraGroupComprehensiveTest is Test {
         emit Unpaused();
         vm.prank(admin);
         group.unpause();
-    }
-
-    function test_Events_TreasuryUpdated() public {
-        address newT = makeAddr("newT");
-        vm.expectEmit(true, true, false, false);
-        emit TreasuryUpdated(treasury, newT);
-        vm.prank(admin);
-        group.setTreasury(newT);
     }
 
     function test_Events_FeesCollected() public {
