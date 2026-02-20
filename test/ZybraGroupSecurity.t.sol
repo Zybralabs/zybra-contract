@@ -424,7 +424,7 @@ contract ZybraGroupSecurityTest is Test {
         group.unpause();
     }
 
-    function test_treasury_isImmutable() public view {
+    function test_treasury_isImmutable() public {
         // Treasury is set at deployment via factory — no admin can change it
         assertEq(group.treasury(), treasury, "Treasury should be immutable from deployment");
     }

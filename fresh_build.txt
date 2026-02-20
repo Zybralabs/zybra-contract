@@ -1,0 +1,391 @@
+Compiling 88 files with Solc 0.8.20
+Solc 0.8.20 finished in 521.59s
+Compiler run successful with warnings:
+Warning (2519): This declaration shadows an existing declaration.
+    --> test/ZybraGroupFeeAudit.t.sol:1343:17:
+     |
+1343 |                 uint256 bal = usdc.balanceOf(user1);
+     |                 ^^^^^^^^^^^
+Note: The shadowed declaration is here:
+    --> test/ZybraGroupFeeAudit.t.sol:1353:9:
+     |
+1353 |         uint256 bal = usdc.balanceOf(user1);
+     |         ^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+    --> test/ZybraGroupComprehensive.t.sol:1193:9:
+     |
+1193 |         uint256 fees = group.collectFees();
+     |         ^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> test/ZybraGroupDefense.t.sol:195:9:
+    |
+195 |         uint256 fees = group.collectFees();
+    |         ^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> test/ZybraGroupDefense.t.sol:679:9:
+    |
+679 |         uint256 collectedFees = group.collectFees();
+    |         ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> test/ZybraGroupFeeAudit.t.sol:227:26:
+    |
+227 |         (uint256 cap1, , uint256 lastCycle1, bool active1) = group.getMemberInfo(user1);
+    |                          ^^^^^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> test/ZybraGroupFeeAudit.t.sol:227:46:
+    |
+227 |         (uint256 cap1, , uint256 lastCycle1, bool active1) = group.getMemberInfo(user1);
+    |                                              ^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> test/ZybraGroupFeeAudit.t.sol:255:9:
+    |
+255 |         uint256 pendingBefore = group.pendingYield(user1);
+    |         ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> test/ZybraGroupFeeAudit.t.sol:348:9:
+    |
+348 |         uint256 treasBefore = usdc.balanceOf(treasury);
+    |         ^^^^^^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+    --> test/ZybraGroupFeeAudit.t.sol:1101:9:
+     |
+1101 |         uint256 feesCollected = usdc.balanceOf(treasury) - treasBefore;
+     |         ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> test/ZybraGroupV2Comprehensive.t.sol:754:9:
+    |
+754 |         uint256 claim1 = usdc.balanceOf(alice) - bal1;
+    |         ^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+    --> test/ZybraGroupV2Comprehensive.t.sol:1142:9:
+     |
+1142 |         uint256 treasuryBefore = usdc.balanceOf(treasury);
+     |         ^^^^^^^^^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> test/ZybraGroupV2MainnetFork.t.sol:340:9:
+    |
+340 |         uint256 pending = group.pendingYield(user1);
+    |         ^^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+  --> test/ZybraGroupV2ParameterAudit.t.sol:74:10:
+   |
+74 |         (uint256 capital, , , bool isActive, ) = group.getMemberInfo(user1);
+   |          ^^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+  --> test/ZybraGroupV2ParameterAudit.t.sol:88:10:
+   |
+88 |         (uint256 capital, , , bool isActive, ) = group.getMemberInfo(user1);
+   |          ^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+  --> test/ZybraGroupV2SecurityTestsComplete.t.sol:39:38:
+   |
+39 |     function deposit(uint256 assets, address receiver) public returns (uint256) {
+   |                                      ^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+  --> test/ZybraGroupV2SecurityTestsComplete.t.sol:47:57:
+   |
+47 |     function withdraw(uint256 assets, address receiver, address owner) public returns (uint256) {
+   |                                                         ^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+  --> test/ZybraGroupV2SecurityTestsComplete.t.sol:59:24:
+   |
+59 |     function balanceOf(address account) public view returns (uint256) {
+   |                        ^^^^^^^^^^^^^^^
+
+Warning (2018): Function state mutability can be restricted to view
+  --> src/mocks/MockMorpho.sol:91:5:
+   |
+91 |     function setFee(MarketParams memory, uint256 /* newFee */) external override {
+   |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning: AST source not found for D:/Zybra-Codebase/Zybra-Contract/src\IZybraGroup.sol
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+    Gς‘Gϋ+ src\ZybraGroup.sol:353:41
+    Gφι
+353 Gφι         unchecked { m.capitalInGroup += uint128(amount); }
+    Gφι                                         GφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφό
+    Gφι
+    Gφ£ note: consider disabling this lint if you're certain the cast is safe
+    Gφι       
+    Gφι       // casting to 'uint128' is safe because [explain why]
+    Gφι       // forge-lint: disable-next-line(unsafe-typecast)
+    Gφι       
+    Gφι       
+    Gς¦ help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+System.Management.Automation.RemoteException
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+    Gς‘Gϋ+ src\ZybraGroup.sol:356:25
+    Gφι
+356 Gφι         m.rewardDebt += uint128((amount * accRewardPerShare) / ACC_PRECISION);
+    Gφι                         GφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφό
+    Gφι
+    Gφ£ note: consider disabling this lint if you're certain the cast is safe
+    Gφι       
+    Gφι       // casting to 'uint128' is safe because [explain why]
+    Gφι       // forge-lint: disable-next-line(unsafe-typecast)
+    Gφι       
+    Gφι       
+    Gς¦ help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+System.Management.Automation.RemoteException
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+    Gς‘Gϋ+ src\ZybraGroup.sol:357:34
+    Gφι
+357 Gφι         m.lastContributedCycle = uint32(currentCycle);
+    Gφι                                  GφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφό
+    Gφι
+    Gφ£ note: consider disabling this lint if you're certain the cast is safe
+    Gφι       
+    Gφι       // casting to 'uint32' is safe because [explain why]
+    Gφι       // forge-lint: disable-next-line(unsafe-typecast)
+    Gφι       
+    Gφι       
+    Gς¦ help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+System.Management.Automation.RemoteException
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+    Gς‘Gϋ+ src\mocks\MockMetaMorpho.sol:127:15
+    Gφι
+127 Gφι         fee = uint96(newFee);
+    Gφι               GφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφό
+    Gφι
+    Gφ£ note: consider disabling this lint if you're certain the cast is safe
+    Gφι       
+    Gφι       // casting to 'uint96' is safe because [explain why]
+    Gφι       // forge-lint: disable-next-line(unsafe-typecast)
+    Gφι       
+    Gφι       
+    Gς¦ help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+System.Management.Automation.RemoteException
+warning[erc20-unchecked-transfer]: ERC20 'transfer' and 'transferFrom' calls should check the return value
+   Gς‘Gϋ+ test\ZybraGroupFeeAudit.t.sol:82:9
+   Gφι
+82 Gφι         usdc.transfer(admin, 1_000_000e6);
+   Gφι         GφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφό
+   Gφι
+   Gς¦ help: https://book.getfoundry.sh/reference/forge/forge-lint#erc20-unchecked-transfer
+System.Management.Automation.RemoteException
+warning[erc20-unchecked-transfer]: ERC20 'transfer' and 'transferFrom' calls should check the return value
+    Gς‘Gϋ+ test\ZybraGroupV2MainnetFork.t.sol:128:9
+    Gφι
+128 Gφι         usdc.transfer(admin, 500_000e6);
+    Gφι         GφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφό
+    Gφι
+    Gς¦ help: https://book.getfoundry.sh/reference/forge/forge-lint#erc20-unchecked-transfer
+System.Management.Automation.RemoteException
+warning[erc20-unchecked-transfer]: ERC20 'transfer' and 'transferFrom' calls should check the return value
+    Gς‘Gϋ+ test\ZybraGroupV2MainnetFork.t.sol:129:9
+    Gφι
+129 Gφι         usdc.transfer(user1, 500_000e6);
+    Gφι         GφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφό
+    Gφι
+    Gς¦ help: https://book.getfoundry.sh/reference/forge/forge-lint#erc20-unchecked-transfer
+System.Management.Automation.RemoteException
+warning[erc20-unchecked-transfer]: ERC20 'transfer' and 'transferFrom' calls should check the return value
+    Gς‘Gϋ+ test\ZybraGroupV2MainnetFork.t.sol:130:9
+    Gφι
+130 Gφι         usdc.transfer(user2, 500_000e6);
+    Gφι         GφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφό
+    Gφι
+    Gς¦ help: https://book.getfoundry.sh/reference/forge/forge-lint#erc20-unchecked-transfer
+System.Management.Automation.RemoteException
+warning[erc20-unchecked-transfer]: ERC20 'transfer' and 'transferFrom' calls should check the return value
+    Gς‘Gϋ+ test\ZybraGroupV2MainnetFork.t.sol:131:9
+    Gφι
+131 Gφι         usdc.transfer(user3, 500_000e6);
+    Gφι         GφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφό
+    Gφι
+    Gς¦ help: https://book.getfoundry.sh/reference/forge/forge-lint#erc20-unchecked-transfer
+System.Management.Automation.RemoteException
+warning[erc20-unchecked-transfer]: ERC20 'transfer' and 'transferFrom' calls should check the return value
+    Gς‘Gϋ+ test\ZybraGroupV2MainnetFork.t.sol:132:9
+    Gφι
+132 Gφι         usdc.transfer(user4, 500_000e6);
+    Gφι         GφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφό
+    Gφι
+    Gς¦ help: https://book.getfoundry.sh/reference/forge/forge-lint#erc20-unchecked-transfer
+System.Management.Automation.RemoteException
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+    Gς‘Gϋ+ src\ZybraGroup.sol:387:24
+    Gφι
+387 Gφι         m.rewardDebt = uint128((uint256(m.capitalInGroup) * accRewardPerShare) / ACC_PRECISION);
+    Gφι                        GφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφό
+    Gφι
+    Gφ£ note: consider disabling this lint if you're certain the cast is safe
+    Gφι       
+    Gφι       // casting to 'uint128' is safe because [explain why]
+    Gφι       // forge-lint: disable-next-line(unsafe-typecast)
+    Gφι       
+    Gφι       
+    Gς¦ help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+System.Management.Automation.RemoteException
+warning[erc20-unchecked-transfer]: ERC20 'transfer' and 'transferFrom' calls should check the return value
+   Gς‘Gϋ+ test\ZybraGroupFeeAudit.t.sol:83:9
+   Gφι
+83 Gφι         usdc.transfer(user1, 1_000_000e6);
+   Gφι         GφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφό
+   Gφι
+   Gς¦ help: https://book.getfoundry.sh/reference/forge/forge-lint#erc20-unchecked-transfer
+System.Management.Automation.RemoteException
+warning[erc20-unchecked-transfer]: ERC20 'transfer' and 'transferFrom' calls should check the return value
+    Gς‘Gϋ+ test\ZybraGroupV2MainnetFork.t.sol:133:9
+    Gφι
+133 Gφι         usdc.transfer(user5, 500_000e6);
+    Gφι         GφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφό
+    Gφι
+    Gς¦ help: https://book.getfoundry.sh/reference/forge/forge-lint#erc20-unchecked-transfer
+System.Management.Automation.RemoteException
+warning[erc20-unchecked-transfer]: ERC20 'transfer' and 'transferFrom' calls should check the return value
+   Gς‘Gϋ+ test\ZybraGroupV2SecurityTestsComplete.t.sol:40:9
+   Gφι
+40 Gφι         token.transferFrom(msg.sender, address(this), assets);
+   Gφι         GφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφό
+   Gφι
+   Gς¦ help: https://book.getfoundry.sh/reference/forge/forge-lint#erc20-unchecked-transfer
+System.Management.Automation.RemoteException
+warning[erc20-unchecked-transfer]: ERC20 'transfer' and 'transferFrom' calls should check the return value
+   Gς‘Gϋ+ test\ZybraGroupFeeAudit.t.sol:84:9
+   Gφι
+84 Gφι         usdc.transfer(user2, 1_000_000e6);
+   Gφι         GφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφό
+   Gφι
+   Gς¦ help: https://book.getfoundry.sh/reference/forge/forge-lint#erc20-unchecked-transfer
+System.Management.Automation.RemoteException
+warning[erc20-unchecked-transfer]: ERC20 'transfer' and 'transferFrom' calls should check the return value
+   Gς‘Gϋ+ test\ZybraGroupFeeAudit.t.sol:85:9
+   Gφι
+85 Gφι         usdc.transfer(user3, 1_000_000e6);
+   Gφι         GφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφό
+   Gφι
+   Gς¦ help: https://book.getfoundry.sh/reference/forge/forge-lint#erc20-unchecked-transfer
+System.Management.Automation.RemoteException
+warning[erc20-unchecked-transfer]: ERC20 'transfer' and 'transferFrom' calls should check the return value
+   Gς‘Gϋ+ test\ZybraGroupFeeAudit.t.sol:86:9
+   Gφι
+86 Gφι         usdc.transfer(user4, 1_000_000e6);
+   Gφι         GφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφό
+   Gφι
+   Gς¦ help: https://book.getfoundry.sh/reference/forge/forge-lint#erc20-unchecked-transfer
+System.Management.Automation.RemoteException
+warning[erc20-unchecked-transfer]: ERC20 'transfer' and 'transferFrom' calls should check the return value
+   Gς‘Gϋ+ test\ZybraGroupFeeAudit.t.sol:87:9
+   Gφι
+87 Gφι         usdc.transfer(user5, 1_000_000e6);
+   Gφι         GφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφό
+   Gφι
+   Gς¦ help: https://book.getfoundry.sh/reference/forge/forge-lint#erc20-unchecked-transfer
+System.Management.Automation.RemoteException
+warning[erc20-unchecked-transfer]: ERC20 'transfer' and 'transferFrom' calls should check the return value
+   Gς‘Gϋ+ test\ZybraGroupV2SecurityTestsComplete.t.sol:48:9
+   Gφι
+48 Gφι         token.transfer(receiver, assets);
+   Gφι         GφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφό
+   Gφι
+   Gς¦ help: https://book.getfoundry.sh/reference/forge/forge-lint#erc20-unchecked-transfer
+System.Management.Automation.RemoteException
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+    Gς‘Gϋ+ src\mocks\MockYieldVault.sol:238:33
+    Gφι
+238 Gφι         _internalTotalAssets += uint128(assets);
+    Gφι                                 GφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφό
+    Gφι
+    Gφ£ note: consider disabling this lint if you're certain the cast is safe
+    Gφι       
+    Gφι       // casting to 'uint128' is safe because [explain why]
+    Gφι       // forge-lint: disable-next-line(unsafe-typecast)
+    Gφι       
+    Gφι       
+    Gς¦ help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+System.Management.Automation.RemoteException
+warning[erc20-unchecked-transfer]: ERC20 'transfer' and 'transferFrom' calls should check the return value
+     Gς‘Gϋ+ test\ZybraGroupV2MainnetFork.t.sol:1317:9
+     Gφι
+1317 Gφι         usdc.transfer(address(group), 100_000e6);
+     Gφι         GφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφό
+     Gφι
+     Gς¦ help: https://book.getfoundry.sh/reference/forge/forge-lint#erc20-unchecked-transfer
+System.Management.Automation.RemoteException
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+    Gς‘Gϋ+ src\mocks\MockYieldVault.sol:265:55
+    Gφι
+265 Gφι         _internalTotalAssets = _internalTotalAssets > uint128(assets) ? _internalTotalAssets - uint128(assets) : 0;
+    Gφι                                                       GφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφό
+    Gφι
+    Gφ£ note: consider disabling this lint if you're certain the cast is safe
+    Gφι       
+    Gφι       // casting to 'uint128' is safe because [explain why]
+    Gφι       // forge-lint: disable-next-line(unsafe-typecast)
+    Gφι       
+    Gφι       
+    Gς¦ help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+System.Management.Automation.RemoteException
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+    Gς‘Gϋ+ src\mocks\MockYieldVault.sol:265:96
+    Gφι
+265 Gφι         _internalTotalAssets = _internalTotalAssets > uint128(assets) ? _internalTotalAssets - uint128(assets) : 0;
+    Gφι                                                                                                GφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφό
+    Gφι
+    Gφ£ note: consider disabling this lint if you're certain the cast is safe
+    Gφι       
+    Gφι       // casting to 'uint128' is safe because [explain why]
+    Gφι       // forge-lint: disable-next-line(unsafe-typecast)
+    Gφι       
+    Gφι       
+    Gς¦ help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+System.Management.Automation.RemoteException
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+    Gς‘Gϋ+ src\mocks\MockYieldVault.sol:287:32
+    Gφι
+287 Gφι         _internalTotalAssets = uint128(newTotalAssets);
+    Gφι                                GφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφό
+    Gφι
+    Gφ£ note: consider disabling this lint if you're certain the cast is safe
+    Gφι       
+    Gφι       // casting to 'uint128' is safe because [explain why]
+    Gφι       // forge-lint: disable-next-line(unsafe-typecast)
+    Gφι       
+    Gφι       
+    Gς¦ help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+System.Management.Automation.RemoteException
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+    Gς‘Gϋ+ src\mocks\MockYieldVault.sol:379:33
+    Gφι
+379 Gφι         _internalTotalAssets += uint128(newYield);
+    Gφι                                 GφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφό
+    Gφι
+    Gφ£ note: consider disabling this lint if you're certain the cast is safe
+    Gφι       
+    Gφι       // casting to 'uint128' is safe because [explain why]
+    Gφι       // forge-lint: disable-next-line(unsafe-typecast)
+    Gφι       
+    Gφι       
+    Gς¦ help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+System.Management.Automation.RemoteException
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+    Gς‘Gϋ+ src\mocks\MockYieldVault.sol:391:33
+    Gφι
+391 Gφι         _internalTotalAssets += uint128(amount);
+    Gφι                                 GφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφόGφό
+    Gφι
+    Gφ£ note: consider disabling this lint if you're certain the cast is safe
+    Gφι       
+    Gφι       // casting to 'uint128' is safe because [explain why]
+    Gφι       // forge-lint: disable-next-line(unsafe-typecast)
+    Gφι       
+    Gφι       
+    Gς¦ help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+System.Management.Automation.RemoteException

@@ -252,8 +252,22 @@ contract ZybraGroup is IFeeSource, ReentrancyGuard {
     /**
      * @dev Safely withdraw from vault and validate return value
      *      [FIX: H-01] Validate vault.withdraw() shares burned > 0
+     *      [FIX: H-03] Handle ERC4626 rounding dust — if withdraw requires
+     *      more shares than available, cap at what available shares support.
+     *      ERC4626 rounds UP on withdraw (vault-favorable), so accumulated
+     *      rounding across many deposits can leave the contract 1+ shares short.
      */
     function _safeVaultWithdraw(uint256 assets, address receiver) internal {
+        uint256 vaultShares = vault.balanceOf(address(this));
+        uint256 sharesToBurn = vault.previewWithdraw(assets);
+
+        if (sharesToBurn > vaultShares) {
+            // ERC4626 rounding dust: cap withdrawal to what available shares support
+            // previewRedeem rounds DOWN (user-adverse), ensuring we don't over-redeem
+            assets = vault.previewRedeem(vaultShares);
+            if (assets == 0) revert WithdrawFailed();
+        }
+
         uint256 sharesBurned = vault.withdraw(assets, receiver, address(this));
         if (sharesBurned == 0) revert WithdrawFailed();
     }
@@ -337,6 +351,11 @@ contract ZybraGroup is IFeeSource, ReentrancyGuard {
         if (members[msg.sender].isActive != 1) revert NotMember();
         if (groupStartTime == 0) revert GroupNotStarted();
         if (groupEnded) revert GroupAlreadyEnded();
+
+        // [FIX: H-04] Prevent contributions after all cycles have elapsed
+        // getCurrentCycle() caps at totalCycles, so the `> totalCycles` check below
+        // is dead code. This explicit time guard closes the gap.
+        if (block.timestamp >= groupStartTime + totalCycles * cycleDuration) revert InvalidCycle();
 
         uint256 currentCycle = getCurrentCycle();
         if (currentCycle == 0 || currentCycle > totalCycles) revert InvalidCycle();

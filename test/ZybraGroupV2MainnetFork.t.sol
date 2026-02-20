@@ -92,9 +92,7 @@ contract ZybraGroupV2MainnetForkTest is Test {
     // ==================== SETUP ====================
 
     function setUp() public {
-        // Fork Ethereum mainnet using public RPC (env var or fallback)
-        string memory rpcUrl = vm.envOr("MAINNET_RPC_URL", string("https://eth.llamarpc.com"));
-        vm.createSelectFork(rpcUrl);
+        // Fork is provided via --fork-url CLI flag
 
         admin = makeAddr("admin");
         treasury = makeAddr("treasury");
@@ -242,7 +240,7 @@ contract ZybraGroupV2MainnetForkTest is Test {
         return string.concat(vm.toString(whole), ".", vm.toString(frac));
     }
 
-    function _assertInv1(ZybraGroup g) internal view {
+    function _assertInv1(ZybraGroup g) internal {
         uint256 cap = g.totalCapitalInGroup();
         uint256 shares = vault.balanceOf(address(g));
         uint256 vaultVal = shares > 0 ? vault.convertToAssets(shares) : 0;
@@ -349,7 +347,7 @@ contract ZybraGroupV2MainnetForkTest is Test {
         assertFalse(active, "Inactive");
     }
 
-    function test_ProtocolFee_TenPercent() public view {
+    function test_ProtocolFee_TenPercent() public {
         uint256 feeBps = group.PROTOCOL_FEE_BPS();
         assertEq(feeBps, 1000, "Fee is 1000 bps = 10%");
         uint256 testYield = 10_000e6;
@@ -503,7 +501,7 @@ contract ZybraGroupV2MainnetForkTest is Test {
         assertEq(group.totalCapitalInGroup(), 1_000e6 + 1_000e6, "Remaining capital");
     }
 
-    function test_VaultERC4626() public view {
+    function test_VaultERC4626() public {
         assertEq(vault.asset(), USDC, "Asset USDC");
         uint256 shares = vault.previewDeposit(10_000e6);
         uint256 assets = vault.convertToAssets(shares);
@@ -573,12 +571,12 @@ contract ZybraGroupV2MainnetForkTest is Test {
     //  SECTION 2: TREASURY & FEE TESTS
     // ####################################################################
 
-    function test_TreasuryInitialized() public view {
+    function test_TreasuryInitialized() public {
         assertEq(group.treasury(), treasury, "Treasury set correctly");
         assertEq(group.totalAccumulatedFees(), 0, "No fees yet");
     }
 
-    function test_TreasuryIsImmutable() public view {
+    function test_TreasuryIsImmutable() public {
         assertEq(group.treasury(), treasury, "Treasury is immutable from deployment");
     }
 
@@ -649,12 +647,13 @@ contract ZybraGroupV2MainnetForkTest is Test {
         vm.prank(user1);
         group.contribute();
 
-        // Warp for yield
-        vm.warp(block.timestamp + 90 days);
+        // Warp for yield (stay within 12-cycle window = 84 days)
+        vm.warp(block.timestamp + 70 days);
 
         uint256 treasBefore = usdc.balanceOf(treasury);
 
         // Second contribution triggers _accrueRewards -> _autoCollectFees
+        // Warp to next cycle boundary (still within window)
         vm.warp(block.timestamp + CYCLE);
         vm.prank(user1);
         group.contribute();
@@ -877,7 +876,7 @@ contract ZybraGroupV2MainnetForkTest is Test {
     // ======================== A-08: TREASURY REDIRECT ========================
 
     /// @notice Cannot change treasury — it's immutable
-    function test_ATTACK_TreasuryRedirect() public view {
+    function test_ATTACK_TreasuryRedirect() public {
         // Treasury is immutable — no setter function exists
         assertEq(group.treasury(), treasury, "Treasury unchanged");
     }
@@ -1767,7 +1766,7 @@ contract ZybraGroupV2MainnetForkTest is Test {
             }
 
             uint256 vaultVal = vault.convertToAssets(vault.balanceOf(address(whaleGroup)));
-            uint256 totalCap whaleGroup.totalCapitalInGroup();
+            uint256 totalCap = whaleGroup.totalCapitalInGroup();
             uint256 grossYield = vaultVal > totalCap ? vaultVal - totalCap : 0;
             uint256 elapsed = (block.timestamp - t0) / 1 days;
 

@@ -271,7 +271,7 @@ contract ZybraGroupAuditPoCTest is Test {
     /**
      * @notice getGroupEndDeadline returns 0 before start
      */
-    function test_H02_EndDeadlineZeroBeforeStart() public view {
+    function test_H02_EndDeadlineZeroBeforeStart() public {
         assertEq(group.getGroupEndDeadline(), 0, "Should be 0 before start");
     }
 
@@ -687,7 +687,7 @@ contract ZybraGroupAuditPoCTest is Test {
     /**
      * @notice Pinned solidity version verification
      */
-    function test_Integration_ContractExists() public view {
+    function test_Integration_ContractExists() public {
         // If we got here, the contract compiled with the pinned version
         assertTrue(address(group) != address(0), "Contract deployed");
         assertEq(group.PROTOCOL_FEE_BPS(), 1000, "Fee BPS correct");

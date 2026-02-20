@@ -146,7 +146,7 @@ contract ZybraGroupComprehensiveTest is Test {
         }
     }
 
-    function _assertInvariant1(address[] memory users) internal view {
+    function _assertInvariant1(address[] memory users) internal {
         uint256 sum = 0;
         // Include admin since they're auto-added
         (uint256 adminCap,,,) = group.getMemberInfo(admin);
@@ -161,7 +161,7 @@ contract ZybraGroupComprehensiveTest is Test {
         assertEq(sum, group.totalCapitalInGroup(), "INV1: sum(capital) != totalCapitalInGroup");
     }
 
-    function _assertInvariant5() internal view {
+    function _assertInvariant5() internal {
         uint256 shares = vault.balanceOf(address(group));
         uint256 vaultVal = shares > 0 ? vault.convertToAssets(shares) : 0;
         // Allow 1 USDC tolerance for rounding
@@ -184,7 +184,7 @@ contract ZybraGroupComprehensiveTest is Test {
     //  SECTION 1: FACTORY DEPLOYMENT TESTS
     // =======================================================================
 
-    function test_Factory_DeploymentTracking() public view {
+    function test_Factory_DeploymentTracking() public {
         assertTrue(factory.isDeployedGroup(address(group)));
         assertEq(factory.getDeployedGroupsCount(), 1);
         address[] memory groups = factory.getAllDeployedGroups();
@@ -192,7 +192,7 @@ contract ZybraGroupComprehensiveTest is Test {
         assertEq(groups[0], address(group));
     }
 
-    function test_Factory_AdminGroupTracking() public view {
+    function test_Factory_AdminGroupTracking() public {
         address[] memory adminGroups = factory.getGroupsByAdmin(admin);
         assertEq(adminGroups.length, 1);
         assertEq(adminGroups[0], address(group));
@@ -381,7 +381,7 @@ contract ZybraGroupComprehensiveTest is Test {
     //  SECTION 3: MEMBERSHIP TESTS
     // =======================================================================
 
-    function test_Membership_AdminAutoAdded() public view {
+    function test_Membership_AdminAutoAdded() public {
         (,,,bool active) = group.getMemberInfo(admin);
         assertTrue(active, "Admin should be auto-added");
         assertEq(group.activeMembersCount(), 1);
@@ -582,12 +582,13 @@ contract ZybraGroupComprehensiveTest is Test {
         vm.prank(alice);
         group.contribute();
 
-        // NOW try again at the same capped cycle - should revert AlreadyContributed
+        // NOW try again past the cycle deadline - should revert InvalidCycle
+        // (the time guard fires before the AlreadyContributed check)
         t += CYCLE_DURATION * 5; // way past end
         vm.warp(t);
         assertEq(group.getCurrentCycle(), TOTAL_CYCLES); // still capped
         vm.prank(alice);
-        vm.expectRevert(AlreadyContributed.selector);
+        vm.expectRevert(InvalidCycle.selector);
         group.contribute();
     }
 
@@ -1086,7 +1087,7 @@ contract ZybraGroupComprehensiveTest is Test {
     //  SECTION 9: FEE ACCOUNTING
     // =======================================================================
 
-    function test_Fee_ExactlyTenPercentBPS() public view {
+    function test_Fee_ExactlyTenPercentBPS() public {
         assertEq(group.PROTOCOL_FEE_BPS(), 1000, "Should be 1000 bps = 10%");
     }
 
@@ -1179,7 +1180,7 @@ contract ZybraGroupComprehensiveTest is Test {
         assertEq(fees, 0, "Should return 0 when no fees");
     }
 
-    function test_Fee_FeeAssetMatchesGroupAsset() public view {
+    function test_Fee_FeeAssetMatchesGroupAsset() public {
         assertEq(group.feeAsset(), address(usdc));
     }
 
@@ -1305,7 +1306,7 @@ contract ZybraGroupComprehensiveTest is Test {
         assertTrue(active);
     }
 
-    function test_Admin_TreasuryIsImmutable() public view {
+    function test_Admin_TreasuryIsImmutable() public {
         // Treasury is set at deployment via factory — cannot be changed
         assertEq(group.treasury(), treasury);
     }
@@ -1428,7 +1429,7 @@ contract ZybraGroupComprehensiveTest is Test {
         group.withdraw();
     }
 
-    function test_StateGuard_GetCurrentCycleBeforeStart() public view {
+    function test_StateGuard_GetCurrentCycleBeforeStart() public {
         assertEq(group.getCurrentCycle(), 0);
     }
 
@@ -2038,7 +2039,7 @@ contract ZybraGroupComprehensiveTest is Test {
         assertEq(group.pendingYield(alice), 0);
     }
 
-    function test_View_PendingYieldNonMember() public view {
+    function test_View_PendingYieldNonMember() public {
         assertEq(group.pendingYield(attacker), 0);
     }
 
@@ -2086,7 +2087,7 @@ contract ZybraGroupComprehensiveTest is Test {
         users[1] = bob;
         users[2] = charlie;
         _joinAndStart(users);
-        uint256 t = block.timestamp;
+        uint256 t = group.groupStartTime();
 
         // Cycle 1: all contribute
         vm.prank(alice);
@@ -2244,7 +2245,7 @@ contract ZybraGroupComprehensiveTest is Test {
             admin, address(vault), treasury);
     }
 
-    function test_Constructor_ImmutablesSetCorrectly() public view {
+    function test_Constructor_ImmutablesSetCorrectly() public {
         assertEq(group.admin(), admin);
         assertEq(address(group.asset()), address(usdc));
         assertEq(address(group.vault()), address(vault));
