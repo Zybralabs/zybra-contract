@@ -92,10 +92,9 @@ contract ZybraGroupComprehensiveTest is Test {
         vault.setAnnualYieldRate(APY_BPS);
 
         // Deploy ZybraGroup directly (no factory in V3)
-        vm.prank(admin);
         group = new ZybraGroup(
             address(usdc), CONTRIBUTION, CYCLE_DURATION, TOTAL_CYCLES,
-            admin, address(vault), treasury
+            admin, address(vault)
         );
 
         // Fund all users
@@ -164,62 +163,58 @@ contract ZybraGroupComprehensiveTest is Test {
     function test_Constructor_RevertZeroAsset() public {
         vm.expectRevert(ZeroAddress.selector);
         new ZybraGroup(address(0), CONTRIBUTION, CYCLE_DURATION, TOTAL_CYCLES,
-            admin, address(vault), treasury);
+            admin, address(vault));
     }
 
     function test_Constructor_RevertZeroAdmin() public {
         vm.expectRevert(ZeroAddress.selector);
         new ZybraGroup(address(usdc), CONTRIBUTION, CYCLE_DURATION, TOTAL_CYCLES,
-            address(0), address(vault), treasury);
+            address(0), address(vault));
     }
 
     function test_Constructor_RevertZeroVault() public {
         vm.expectRevert(ZeroAddress.selector);
         new ZybraGroup(address(usdc), CONTRIBUTION, CYCLE_DURATION, TOTAL_CYCLES,
-            admin, address(0), treasury);
+            admin, address(0));
     }
 
-    function test_Constructor_RevertZeroTreasury() public {
-        vm.expectRevert(ZeroAddress.selector);
-        new ZybraGroup(address(usdc), CONTRIBUTION, CYCLE_DURATION, TOTAL_CYCLES,
-            admin, address(vault), address(0));
-    }
+
 
     function test_Constructor_RevertContributionBelowMin() public {
         vm.expectRevert(InvalidAmount.selector);
         new ZybraGroup(address(usdc), 999_999, CYCLE_DURATION, TOTAL_CYCLES,
-            admin, address(vault), treasury);
+            admin, address(vault));
     }
 
     function test_Constructor_RevertContributionAboveMax() public {
         vm.expectRevert(InvalidAmount.selector);
         new ZybraGroup(address(usdc), 1001_000_000, CYCLE_DURATION, TOTAL_CYCLES,
-            admin, address(vault), treasury);
+            admin, address(vault));
     }
 
     function test_Constructor_RevertZeroCycleDuration() public {
         vm.expectRevert(InvalidCycle.selector);
         new ZybraGroup(address(usdc), CONTRIBUTION, 0, TOTAL_CYCLES,
-            admin, address(vault), treasury);
+            admin, address(vault));
     }
 
     function test_Constructor_RevertZeroTotalCycles() public {
         vm.expectRevert(InvalidCycle.selector);
         new ZybraGroup(address(usdc), CONTRIBUTION, CYCLE_DURATION, 0,
-            admin, address(vault), treasury);
+            admin, address(vault));
     }
 
     function test_Constructor_RevertTotalCyclesExceeds52() public {
         vm.expectRevert(InvalidCycle.selector);
         new ZybraGroup(address(usdc), CONTRIBUTION, CYCLE_DURATION, 53,
-            admin, address(vault), treasury);
+            admin, address(vault));
     }
 
     function test_Constructor_RevertVaultAssetMismatch() public {
         MockERC20 otherToken = new MockERC20("Other", "OTH", 6);
         vm.expectRevert(VaultAssetMismatch.selector);
         new ZybraGroup(address(otherToken), CONTRIBUTION, CYCLE_DURATION, TOTAL_CYCLES,
-            admin, address(vault), treasury);
+            admin, address(vault));
     }
 
     function test_Constructor_ImmutablesSetCorrectly() public {
@@ -1404,10 +1399,9 @@ contract ZybraGroupComprehensiveTest is Test {
     function test_Admin_StartGroupWithOnlyAdmin_Reverts() public {
         // V3: admin alone = 1 member < MIN_MEMBERS = 2
         // Need fresh group
-        vm.prank(admin);
         ZybraGroup freshGroup = new ZybraGroup(
             address(usdc), CONTRIBUTION, CYCLE_DURATION, TOTAL_CYCLES,
-            admin, address(vault), treasury
+            admin, address(vault)
         );
         vm.prank(admin);
         vm.expectRevert(InsufficientMembers.selector);
@@ -1632,10 +1626,9 @@ contract ZybraGroupComprehensiveTest is Test {
     // =======================================================================
 
     function test_Edge_MinContributionAmount() public {
-        vm.prank(admin);
         ZybraGroup minGroup = new ZybraGroup(
             address(usdc), 1_000_000, // MIN = 1 USDC
-            CYCLE_DURATION, TOTAL_CYCLES, admin, address(vault), treasury
+            CYCLE_DURATION, TOTAL_CYCLES, admin, address(vault)
         );
 
         usdc.mint(alice, 100_000_000);
@@ -1657,10 +1650,9 @@ contract ZybraGroupComprehensiveTest is Test {
     }
 
     function test_Edge_MaxContributionAmount() public {
-        vm.prank(admin);
         ZybraGroup maxGroup = new ZybraGroup(
             address(usdc), 1000_000_000, // MAX = 1000 USDC
-            CYCLE_DURATION, TOTAL_CYCLES, admin, address(vault), treasury
+            CYCLE_DURATION, TOTAL_CYCLES, admin, address(vault)
         );
 
         usdc.mint(alice, 100_000_000_000);
@@ -1682,11 +1674,10 @@ contract ZybraGroupComprehensiveTest is Test {
     }
 
     function test_Edge_VeryShortCycleDuration() public {
-        vm.prank(admin);
         ZybraGroup shortGroup = new ZybraGroup(
             address(usdc), CONTRIBUTION,
             1, // 1 second cycle
-            TOTAL_CYCLES, admin, address(vault), treasury
+            TOTAL_CYCLES, admin, address(vault)
         );
 
         usdc.mint(alice, 100_000_000_000);
@@ -2006,10 +1997,9 @@ contract ZybraGroupComprehensiveTest is Test {
         address poorUser = makeAddr("poor");
         usdc.mint(poorUser, CONTRIBUTION / 2); // Not enough
 
-        vm.prank(admin);
         ZybraGroup freshGroup = new ZybraGroup(
             address(usdc), CONTRIBUTION, CYCLE_DURATION, TOTAL_CYCLES,
-            admin, address(vault), treasury
+            admin, address(vault)
         );
 
         vm.prank(poorUser);
@@ -2033,10 +2023,9 @@ contract ZybraGroupComprehensiveTest is Test {
         usdc.mint(noApproval, 100_000_000_000);
         // Intentionally NOT approving
 
-        vm.prank(admin);
         ZybraGroup freshGroup = new ZybraGroup(
             address(usdc), CONTRIBUTION, CYCLE_DURATION, TOTAL_CYCLES,
-            admin, address(vault), treasury
+            admin, address(vault)
         );
 
         vm.prank(noApproval);
@@ -2169,10 +2158,9 @@ contract ZybraGroupComprehensiveTest is Test {
         // Bound to valid range
         amount = bound(amount, 1_000_000, 1000_000_000);
 
-        vm.prank(admin);
         ZybraGroup fuzzGroup = new ZybraGroup(
             address(usdc), amount, CYCLE_DURATION, TOTAL_CYCLES,
-            admin, address(vault), treasury
+            admin, address(vault)
         );
 
         usdc.mint(alice, 100_000_000_000);
@@ -2589,42 +2577,50 @@ contract ZybraGroupComprehensiveTest is Test {
         users[1] = bob;
         users[2] = charlie;
 
-        // Set known base time to avoid via_ir timestamp caching
-        vm.warp(1_000_000);
         _joinAndStart(users);
-        uint256 base = 1_000_000;
+        uint256 base = group.groupStartTime();
 
         // Cycle 1: All contribute
+        _backVaultYield();
         vm.prank(alice);
         group.contribute();
+        _backVaultYield();
         vm.prank(bob);
         group.contribute();
+        _backVaultYield();
         vm.prank(charlie);
         group.contribute();
 
         // Cycle 2: Only Alice and Bob
         vm.warp(base + CYCLE_DURATION);
+        _backVaultYield();
         vm.prank(alice);
         group.contribute();
+        _backVaultYield();
         vm.prank(bob);
         group.contribute();
 
         // Cycle 3: Only Alice
         vm.warp(base + CYCLE_DURATION * 2);
+        _backVaultYield();
         vm.prank(alice);
         group.contribute();
 
         // Cycle 4: All contribute
         vm.warp(base + CYCLE_DURATION * 3);
+        _backVaultYield();
         vm.prank(alice);
         group.contribute();
+        _backVaultYield();
         vm.prank(bob);
         group.contribute();
+        _backVaultYield();
         vm.prank(charlie);
         group.contribute();
 
         // Wait for yield
         vm.warp(base + CYCLE_DURATION * 4 + 14 days);
+        _backVaultYield();
 
         // Alice contributed 4x, Bob 3x, Charlie 2x
         (uint256 aliceCap,,,) = group.getMemberInfo(alice);
@@ -2695,15 +2691,13 @@ contract ZybraGroupComprehensiveTest is Test {
 
     function test_V3_ClaimOrderDoesNotMatter() public {
         // Deploy two identical groups
-        vm.prank(admin);
         ZybraGroup groupA = new ZybraGroup(
             address(usdc), CONTRIBUTION, CYCLE_DURATION, TOTAL_CYCLES,
-            admin, address(vault), treasury
+            admin, address(vault)
         );
-        vm.prank(admin);
         ZybraGroup groupB = new ZybraGroup(
             address(usdc), CONTRIBUTION, CYCLE_DURATION, TOTAL_CYCLES,
-            admin, address(vault), treasury
+            admin, address(vault)
         );
 
         // Fund and approve for both

@@ -43,10 +43,9 @@ contract ZybraGroupDefenseTest is Test {
         vm.prank(admin);
         vault.setAnnualYieldRate(APY_BPS);
 
-        vm.prank(admin);
         group = new ZybraGroup(
             address(usdc), CONTRIBUTION, CYCLE_DURATION, TOTAL_CYCLES,
-            admin, address(vault), treasury
+            admin, address(vault)
         );
 
         address[5] memory users = [alice, bob, charlie, attacker, admin];
@@ -143,9 +142,10 @@ contract ZybraGroupDefenseTest is Test {
     // ===== DEFENSE 3: No Fee Double-Counting =====
     function test_DEFENSE_NoFeeDoubleCounting() public {
         _setupAndContribute();
+        uint256 startTime = group.groupStartTime();
 
-        // Use hardcoded timestamps to avoid via_ir caching
-        vm.warp(604801); // 1 week after start (cycle 2)
+        // Cycle 2
+        vm.warp(startTime + CYCLE_DURATION + 1);
         _backVaultYield();
         vm.prank(admin);
         group.contribute();
@@ -154,13 +154,13 @@ contract ZybraGroupDefenseTest is Test {
         vm.prank(bob);
         group.contribute();
 
-        vm.warp(3024001); // ~5 weeks from start
+        vm.warp(startTime + 5 * CYCLE_DURATION + 1);
         _backVaultYield();
 
         vm.prank(alice);
         group.claimYield();
 
-        vm.warp(3628801); // ~6 weeks from start
+        vm.warp(startTime + 6 * CYCLE_DURATION + 1);
         _backVaultYield();
 
         vm.prank(bob);
@@ -267,7 +267,8 @@ contract ZybraGroupDefenseTest is Test {
     // ===== DEFENSE 8: No Combined Attack =====
     function test_DEFENSE_NoCombinedAttack() public {
         _setupAndContribute();
-        vm.warp(2419201); // 4 weeks
+        uint256 startTime = group.groupStartTime();
+        vm.warp(startTime + 4 * CYCLE_DURATION + 1);
         _backVaultYield();
 
         vm.prank(alice);
@@ -297,10 +298,9 @@ contract ZybraGroupDefenseTest is Test {
         );
 
         vm.expectRevert(ZybraGroup.VaultAssetMismatch.selector);
-        vm.prank(admin);
         new ZybraGroup(
             address(usdc), CONTRIBUTION, CYCLE_DURATION, TOTAL_CYCLES,
-            admin, address(wrongVault), treasury
+            admin, address(wrongVault)
         );
     }
 
@@ -335,10 +335,9 @@ contract ZybraGroupDefenseTest is Test {
 
     // ===== DEFENSE 11: MIN_MEMBERS =====
     function test_DEFENSE_MinMembersRequired() public {
-        vm.prank(admin);
         ZybraGroup freshGroup = new ZybraGroup(
             address(usdc), CONTRIBUTION, CYCLE_DURATION, TOTAL_CYCLES,
-            admin, address(vault), treasury
+            admin, address(vault)
         );
 
         vm.prank(admin);
@@ -445,13 +444,14 @@ contract ZybraGroupDefenseTest is Test {
     // ===== DEFENSE 16: No Yield Lock After Partial Withdraw =====
     function test_DEFENSE_NoYieldLockAfterPartialWithdraw() public {
         _setupAndContribute();
-        vm.warp(1209601); // 2 weeks
+        uint256 startTime = group.groupStartTime();
+        vm.warp(startTime + 2 * CYCLE_DURATION + 1);
         _backVaultYield();
 
         vm.prank(alice);
         group.withdraw();
 
-        vm.warp(2419201); // 4 weeks
+        vm.warp(startTime + 4 * CYCLE_DURATION + 1);
         _backVaultYield();
 
         uint256 bobPending = group.pendingYield(bob);
@@ -610,8 +610,9 @@ contract ZybraGroupDefenseTest is Test {
         group.joinGroup();
         vm.prank(admin);
         group.startGroup();
+        uint256 startTime = group.groupStartTime();
 
-        // Cycle 1 (timestamp ~1)
+        // Cycle 1
         vm.prank(admin);
         group.contribute();
         vm.prank(alice);
@@ -619,8 +620,8 @@ contract ZybraGroupDefenseTest is Test {
         vm.prank(bob);
         group.contribute();
 
-        // Cycle 2 (hardcoded timestamps to avoid via_ir issues)
-        vm.warp(604801);
+        // Cycle 2
+        vm.warp(startTime + CYCLE_DURATION + 1);
         _backVaultYield();
         vm.prank(admin);
         group.contribute();
@@ -630,7 +631,7 @@ contract ZybraGroupDefenseTest is Test {
         group.contribute();
 
         // Cycle 3
-        vm.warp(1209601);
+        vm.warp(startTime + 2 * CYCLE_DURATION + 1);
         _backVaultYield();
         vm.prank(admin);
         group.contribute();
@@ -640,7 +641,7 @@ contract ZybraGroupDefenseTest is Test {
         group.contribute();
 
         // Cycle 4
-        vm.warp(1814401);
+        vm.warp(startTime + 3 * CYCLE_DURATION + 1);
         _backVaultYield();
         vm.prank(admin);
         group.contribute();
@@ -650,7 +651,7 @@ contract ZybraGroupDefenseTest is Test {
         group.contribute();
 
         // Wait for yield (4 weeks after cycle 4)
-        vm.warp(4233601);
+        vm.warp(startTime + 7 * CYCLE_DURATION + 1);
         _backVaultYield();
 
         vm.prank(admin);

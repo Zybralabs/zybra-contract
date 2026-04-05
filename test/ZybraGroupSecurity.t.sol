@@ -70,15 +70,14 @@ contract ZybraGroupSecurityTest is Test {
         vault.setAnnualYieldRate(5000); // 50% APY for fast testing
 
         // Deploy factory + group
-        factory = new ZybraGroupFactory();
+        factory = new ZybraGroupFactory(treasury);
         address groupAddress = factory.deployGroup(
             address(usdc),
             CONTRIBUTION,
             CYCLE_DURATION,
             TOTAL_CYCLES,
             admin,
-            address(vault),
-            treasury
+            address(vault)
         );
         group = ZybraGroup(groupAddress);
 
@@ -424,9 +423,9 @@ contract ZybraGroupSecurityTest is Test {
         group.unpause();
     }
 
-    function test_treasury_isImmutable() public {
-        // Treasury is set at deployment via factory — no admin can change it
-        assertEq(group.treasury(), treasury, "Treasury should be immutable from deployment");
+    function test_treasury_isSetByFactory() public {
+        // Treasury is set at deployment via factory — only factory can change it
+        assertEq(group.treasury(), treasury, "Treasury should be set by factory at deployment");
     }
 
     // ==================== 8. PAUSE GUARD ====================

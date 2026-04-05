@@ -6,7 +6,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 /**
- * ✅ TEST-DRIVEN DEVELOPMENT SUITE: ZybraGroupV2 Security Fixes
+ *  TEST-DRIVEN DEVELOPMENT SUITE: ZybraGroupV2 Security Fixes
  * 
  * Tests Verify:
  * 1. No unnecessary parameters in user-facing functions
@@ -110,7 +110,7 @@ contract ZybraGroupV2SecurityTests is Test {
     // ============== TEST #1: joinGroup() Has No Parameters ==============
 
     /**
-     * ✅ FIX VERIFICATION #1:
+     *  FIX VERIFICATION #1:
      * BEFORE: function joinGroup(address member) external
      * AFTER: function joinGroup() external
      * 
@@ -127,11 +127,11 @@ contract ZybraGroupV2SecurityTests is Test {
         // If it fails, the parameter still exists
         
         vm.prank(user1);
-        // IZybraGroupV2Fixed(group).joinGroup(); // ✅ No parameter needed
+        // IZybraGroupV2Fixed(group).joinGroup(); //  No parameter needed
     }
 
     /**
-     * ✅ TEST: Only msg.sender is affected by joinGroup()
+     *  TEST: Only msg.sender is affected by joinGroup()
      */
     function test_joinGroup_OnlyMsgSenderAffected() public {
         // User1 calls joinGroup
@@ -149,7 +149,7 @@ contract ZybraGroupV2SecurityTests is Test {
     }
 
     /**
-     * ✅ TEST: No Confusion in Function Call
+     *  TEST: No Confusion in Function Call
      */
     function test_joinGroup_NoConfusion() public {
         // Frontend developer doesn't wonder:
@@ -162,7 +162,7 @@ contract ZybraGroupV2SecurityTests is Test {
     // ============== TEST #2: contribute() Has No Parameters ==============
 
     /**
-     * ✅ FIX VERIFICATION #2:
+     *  FIX VERIFICATION #2:
      * BEFORE: function contribute(address user) external
      * AFTER: function contribute() external
      * 
@@ -179,7 +179,7 @@ contract ZybraGroupV2SecurityTests is Test {
     }
 
     /**
-     * ✅ CRITICAL TEST: Admin CANNOT Force Contributions
+     *  CRITICAL TEST: Admin CANNOT Force Contributions
      */
     function test_contribute_AdminCannotForce() public {
         // VULNERABLE (before fix):
@@ -211,7 +211,7 @@ contract ZybraGroupV2SecurityTests is Test {
     }
 
     /**
-     * ✅ TEST: Only msg.sender's Tokens Are Used
+     *  TEST: Only msg.sender's Tokens Are Used
      */
     function test_contribute_UsesOnlyMsgSender() public {
         // User1 contributes
@@ -229,7 +229,7 @@ contract ZybraGroupV2SecurityTests is Test {
     }
 
     /**
-     * ✅ TEST: Cannot Contribute for Another User
+     *  TEST: Cannot Contribute for Another User
      */
     function test_contribute_CannotAffectOthers() public {
         // User1 calls contribute()
@@ -250,7 +250,7 @@ contract ZybraGroupV2SecurityTests is Test {
     // ============== TEST #3: Explicit adminAddMember() ==============
 
     /**
-     * ✅ NEW FUNCTION: adminAddMember(address member) external onlyAdmin
+     *  NEW FUNCTION: adminAddMember(address member) external onlyAdmin
      * 
      * Purpose:
      * - Only admin can call
@@ -268,11 +268,11 @@ contract ZybraGroupV2SecurityTests is Test {
         // IZybraGroupV2Fixed(group).adminAddMember(user2);
         // 
         // vm.prank(admin);
-        // IZybraGroupV2Fixed(group).adminAddMember(user2); // ✅ Works
+        // IZybraGroupV2Fixed(group).adminAddMember(user2); //  Works
     }
 
     /**
-     * ✅ TEST: adminAddMember() Emits Event
+     *  TEST: adminAddMember() Emits Event
      */
     function test_adminAddMember_EmitsEvent() public {
         // Calling adminAddMember emits AdminAddedMember event
@@ -286,7 +286,7 @@ contract ZybraGroupV2SecurityTests is Test {
     }
 
     /**
-     * ✅ TEST: Regular joinGroup() Also Works
+     *  TEST: Regular joinGroup() Also Works
      */
     function test_bothJoinMethodsWork() public {
         // Both joinGroup() and adminAddMember() work
@@ -308,14 +308,14 @@ contract ZybraGroupV2SecurityTests is Test {
     // ============== TEST #4: Consistent Access Control ==============
 
     /**
-     * ✅ TEST: ALL Functions Use msg.sender
+     *  TEST: ALL Functions Use msg.sender
      * 
      * Functions use msg.sender:
-     * - joinGroup() ✅
-     * - leaveGroup() ✅
-     * - contribute() ✅
-     * - claimYield() ✅
-     * - withdraw() ✅
+     * - joinGroup() 
+     * - leaveGroup() 
+     * - contribute() 
+     * - claimYield() 
+     * - withdraw() 
      * 
      * Functions do NOT take user parameter:
      * - (except adminAddMember which is explicit admin action)
@@ -344,7 +344,7 @@ contract ZybraGroupV2SecurityTests is Test {
     // ============== TEST #5: No Parameter Confusion ==============
 
     /**
-     * ✅ TEST: Frontend Integration is Simpler
+     *  TEST: Frontend Integration is Simpler
      * 
      * Old Way (confusing):
      *   function joinGroup(address member) external
@@ -386,7 +386,7 @@ contract ZybraGroupV2SecurityTests is Test {
     // ============== TEST #6: Security Properties ==============
 
     /**
-     * ✅ TEST: User Can NEVER Affect Another User's Funds
+     *  TEST: User Can NEVER Affect Another User's Funds
      */
     function test_noUserCanAffectOthers() public {
         // Setup: Both users are members
@@ -411,7 +411,7 @@ contract ZybraGroupV2SecurityTests is Test {
     }
 
     /**
-     * ✅ TEST: Admin Can Add Members Explicitly
+     *  TEST: Admin Can Add Members Explicitly
      */
     function test_adminCanAddMembersExplicitly() public {
         // Admin adds user1 to group
@@ -427,7 +427,7 @@ contract ZybraGroupV2SecurityTests is Test {
     }
 
     /**
-     * ✅ TEST: Admin CANNOT Contribute for Users
+     *  TEST: Admin CANNOT Contribute for Users
      */
     function test_adminCannotContributeForUsers() public {
         // Setup: Both admin and user1 are members
@@ -458,7 +458,7 @@ contract ZybraGroupV2SecurityTests is Test {
     // ============== MAINNET DEPLOYMENT CHECKLIST ==============
 
     /**
-     * ✅ BEFORE MAINNET DEPLOYMENT, VERIFY:
+     *  BEFORE MAINNET DEPLOYMENT, VERIFY:
      * 
      * [ ] joinGroup() has NO address parameter
      * [ ] contribute() has NO address parameter

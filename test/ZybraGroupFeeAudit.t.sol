@@ -74,8 +74,8 @@ contract ZybraGroupFeeAuditTest is Test {
         else whale = WHALE_3;
         if (usdc.balanceOf(whale) < 10_000_000e6) deal(USDC, whale, 100_000_000e6);
 
-        group = new ZybraGroup(USDC, CONTRIBUTION, CYCLE, CYCLES, admin, MORPHO_VAULT, treasury);
-        factory = new ZybraGroupFactory();
+        group = new ZybraGroup(USDC, CONTRIBUTION, CYCLE, CYCLES, admin, MORPHO_VAULT);
+        factory = new ZybraGroupFactory(treasury);
 
         // Fund users
         vm.startPrank(whale);
@@ -724,7 +724,7 @@ contract ZybraGroupFeeAuditTest is Test {
     function test_PRECISION_MinContribution() public {
         // Use min contribution ($1 USDC)
         ZybraGroup minGroup = new ZybraGroup(
-            USDC, 1e6, CYCLE, CYCLES, admin, MORPHO_VAULT, treasury
+            USDC, 1e6, CYCLE, CYCLES, admin, MORPHO_VAULT
         );
 
         deal(USDC, user1, 100e6);
@@ -764,7 +764,7 @@ contract ZybraGroupFeeAuditTest is Test {
     function test_PRECISION_MaxContribution_50Users() public {
         // Max: $1000 x 50 users x 12 cycles = $600K
         ZybraGroup maxGroup = new ZybraGroup(
-            USDC, 1000e6, CYCLE, CYCLES, admin, MORPHO_VAULT, treasury
+            USDC, 1000e6, CYCLE, CYCLES, admin, MORPHO_VAULT
         );
 
         address[] memory users = new address[](50);
@@ -1034,7 +1034,7 @@ contract ZybraGroupFeeAuditTest is Test {
     /// @notice Factory-deployed group has correct treasury and fee setup
     function test_EDGE_FactoryDeployedGroup_FeeSetup() public {
         address groupAddr = factory.deployGroup(
-            USDC, CONTRIBUTION, CYCLE, CYCLES, admin, MORPHO_VAULT, treasury
+            USDC, CONTRIBUTION, CYCLE, CYCLES, admin, MORPHO_VAULT
         );
 
         ZybraGroup factoryGroup = ZybraGroup(groupAddr);
@@ -1191,8 +1191,8 @@ contract ZybraGroupFeeAuditTest is Test {
 
     /// @notice Two groups sharing vault: fees are independent
     function test_ISOLATION_TwoGroups_IndependentFees() public {
-        ZybraGroup groupA = new ZybraGroup(USDC, CONTRIBUTION, CYCLE, CYCLES, admin, MORPHO_VAULT, treasury);
-        ZybraGroup groupB = new ZybraGroup(USDC, 500e6, CYCLE, CYCLES, admin, MORPHO_VAULT, treasury);
+        ZybraGroup groupA = new ZybraGroup(USDC, CONTRIBUTION, CYCLE, CYCLES, admin, MORPHO_VAULT);
+        ZybraGroup groupB = new ZybraGroup(USDC, 500e6, CYCLE, CYCLES, admin, MORPHO_VAULT);
 
         deal(USDC, user1, 10_000e6);
         deal(USDC, user2, 10_000e6);
@@ -1246,7 +1246,7 @@ contract ZybraGroupFeeAuditTest is Test {
     /// @notice 50 members, 12 cycles, interleaveed claims and withdrawals
     function test_STRESS_50Members_InterleavedOps() public {
         ZybraGroup stressGroup = new ZybraGroup(
-            USDC, CONTRIBUTION, CYCLE, CYCLES, admin, MORPHO_VAULT, treasury
+            USDC, CONTRIBUTION, CYCLE, CYCLES, admin, MORPHO_VAULT
         );
 
         address[] memory users = new address[](50);

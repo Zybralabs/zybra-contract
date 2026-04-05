@@ -119,7 +119,7 @@ contract ZybraGroupV2MainnetForkTest is Test {
             deal(USDC, whale, 100_000_000e6);
         }
 
-        group = new ZybraGroup(USDC, CONTRIBUTION, CYCLE, CYCLES, admin, MORPHO_VAULT, treasury);
+        group = new ZybraGroup(USDC, CONTRIBUTION, CYCLE, CYCLES, admin, MORPHO_VAULT);
 
         // Fund basic users
         vm.startPrank(whale);
@@ -153,7 +153,7 @@ contract ZybraGroupV2MainnetForkTest is Test {
         returns (ZybraGroup whaleGroup, address[] memory users)
     {
         require(numMembers >= 2 && numMembers <= MAX_WHALE_USERS, "2-50 members");
-        whaleGroup = new ZybraGroup(USDC, CONTRIBUTION, CYCLE, CYCLES, admin, MORPHO_VAULT, treasury);
+        whaleGroup = new ZybraGroup(USDC, CONTRIBUTION, CYCLE, CYCLES, admin, MORPHO_VAULT);
         users = new address[](numMembers);
         users[0] = admin;
         for (uint256 i = 1; i < numMembers; i++) {
@@ -576,8 +576,8 @@ contract ZybraGroupV2MainnetForkTest is Test {
         assertEq(group.totalAccumulatedFees(), 0, "No fees yet");
     }
 
-    function test_TreasuryIsImmutable() public {
-        assertEq(group.treasury(), treasury, "Treasury is immutable from deployment");
+    function test_TreasuryIsSetByFactory() public {
+        assertEq(group.treasury(), treasury, "Treasury is set by factory at deployment");
     }
 
     function test_TreasuryFeeAccumulatedOnYieldClaim() public {
@@ -930,7 +930,7 @@ contract ZybraGroupV2MainnetForkTest is Test {
 
     /// @notice Cannot add member beyond MAX_MEMBERS
     function test_ATTACK_MaxMembersOverflow() public {
-        ZybraGroup bigGroup = new ZybraGroup(USDC, CONTRIBUTION, CYCLE, CYCLES, admin, MORPHO_VAULT, treasury);
+        ZybraGroup bigGroup = new ZybraGroup(USDC, CONTRIBUTION, CYCLE, CYCLES, admin, MORPHO_VAULT);
 
         // Admin is auto-added as member #1
         for (uint256 i = 1; i < 50; i++) {
@@ -1185,9 +1185,9 @@ contract ZybraGroupV2MainnetForkTest is Test {
     /// @notice Two separate groups with same vault don't contaminate each other
     function test_ATTACK_CrossGroupContamination() public {
         // Group A
-        ZybraGroup groupA = new ZybraGroup(USDC, CONTRIBUTION, CYCLE, CYCLES, admin, MORPHO_VAULT, treasury);
+        ZybraGroup groupA = new ZybraGroup(USDC, CONTRIBUTION, CYCLE, CYCLES, admin, MORPHO_VAULT);
         // Group B
-        ZybraGroup groupB = new ZybraGroup(USDC, CONTRIBUTION, CYCLE, CYCLES, admin, MORPHO_VAULT, treasury);
+        ZybraGroup groupB = new ZybraGroup(USDC, CONTRIBUTION, CYCLE, CYCLES, admin, MORPHO_VAULT);
 
         // Join + Fund
         deal(USDC, user1, 10_000e6);
@@ -1397,42 +1397,39 @@ contract ZybraGroupV2MainnetForkTest is Test {
     /// @notice Cannot create group with zero addresses
     function test_ATTACK_ConstructorZeroAddress() public {
         vm.expectRevert(ZybraGroup.ZeroAddress.selector);
-        new ZybraGroup(address(0), CONTRIBUTION, CYCLE, CYCLES, admin, MORPHO_VAULT, treasury);
+        new ZybraGroup(address(0), CONTRIBUTION, CYCLE, CYCLES, admin, MORPHO_VAULT);
 
         vm.expectRevert(ZybraGroup.ZeroAddress.selector);
-        new ZybraGroup(USDC, CONTRIBUTION, CYCLE, CYCLES, address(0), MORPHO_VAULT, treasury);
+        new ZybraGroup(USDC, CONTRIBUTION, CYCLE, CYCLES, address(0), MORPHO_VAULT);
 
         vm.expectRevert(ZybraGroup.ZeroAddress.selector);
-        new ZybraGroup(USDC, CONTRIBUTION, CYCLE, CYCLES, admin, address(0), treasury);
-
-        vm.expectRevert(ZybraGroup.ZeroAddress.selector);
-        new ZybraGroup(USDC, CONTRIBUTION, CYCLE, CYCLES, admin, MORPHO_VAULT, address(0));
+        new ZybraGroup(USDC, CONTRIBUTION, CYCLE, CYCLES, admin, address(0));
     }
 
     /// @notice Cannot create group with invalid contribution
     function test_ATTACK_ConstructorInvalidContribution() public {
         // Below minimum
         vm.expectRevert(ZybraGroup.InvalidAmount.selector);
-        new ZybraGroup(USDC, 0, CYCLE, CYCLES, admin, MORPHO_VAULT, treasury);
+        new ZybraGroup(USDC, 0, CYCLE, CYCLES, admin, MORPHO_VAULT);
 
         // Above maximum
         vm.expectRevert(ZybraGroup.InvalidAmount.selector);
-        new ZybraGroup(USDC, 1001e6, CYCLE, CYCLES, admin, MORPHO_VAULT, treasury);
+        new ZybraGroup(USDC, 1001e6, CYCLE, CYCLES, admin, MORPHO_VAULT);
     }
 
     /// @notice Cannot create group with invalid cycles
     function test_ATTACK_ConstructorInvalidCycles() public {
         // Zero cycles
         vm.expectRevert(ZybraGroup.InvalidCycle.selector);
-        new ZybraGroup(USDC, CONTRIBUTION, CYCLE, 0, admin, MORPHO_VAULT, treasury);
+        new ZybraGroup(USDC, CONTRIBUTION, CYCLE, 0, admin, MORPHO_VAULT);
 
         // Too many cycles (>52)
         vm.expectRevert(ZybraGroup.InvalidCycle.selector);
-        new ZybraGroup(USDC, CONTRIBUTION, CYCLE, 53, admin, MORPHO_VAULT, treasury);
+        new ZybraGroup(USDC, CONTRIBUTION, CYCLE, 53, admin, MORPHO_VAULT);
 
         // Zero cycle duration
         vm.expectRevert(ZybraGroup.InvalidCycle.selector);
-        new ZybraGroup(USDC, CONTRIBUTION, 0, CYCLES, admin, MORPHO_VAULT, treasury);
+        new ZybraGroup(USDC, CONTRIBUTION, 0, CYCLES, admin, MORPHO_VAULT);
     }
 
     // ======================== A-27: VAULT ASSET MISMATCH ========================
@@ -1441,7 +1438,7 @@ contract ZybraGroupV2MainnetForkTest is Test {
     function test_ATTACK_VaultAssetMismatch() public {
         address fakeVault = makeAddr("fakeVault");
         vm.expectRevert(); // Will revert when calling asset() on non-contract
-        new ZybraGroup(USDC, CONTRIBUTION, CYCLE, CYCLES, admin, fakeVault, treasury);
+        new ZybraGroup(USDC, CONTRIBUTION, CYCLE, CYCLES, admin, fakeVault);
     }
 
     // ======================== A-28: START GROUP ABUSE ========================
@@ -1577,7 +1574,7 @@ contract ZybraGroupV2MainnetForkTest is Test {
 
     /// @notice membersList grows but doesn't block operations
     function test_ATTACK_MembersListGrowth() public {
-        ZybraGroup bigGroup = new ZybraGroup(USDC, CONTRIBUTION, CYCLE, CYCLES, admin, MORPHO_VAULT, treasury);
+        ZybraGroup bigGroup = new ZybraGroup(USDC, CONTRIBUTION, CYCLE, CYCLES, admin, MORPHO_VAULT);
 
         // Join 49 users (admin + 49 = MAX 50)
         for (uint256 i = 1; i < 50; i++) {

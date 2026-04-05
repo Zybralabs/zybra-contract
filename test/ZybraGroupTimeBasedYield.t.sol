@@ -44,7 +44,7 @@ contract ZybraGroupTimeBasedYieldTest is Test {
         vault.setAnnualYieldRate(5000); // 50% APY for fast testing
 
         // Deploy factory
-        factory = new ZybraGroupFactory();
+        factory = new ZybraGroupFactory(treasury);
 
         // Deploy group via factory
         address groupAddress = factory.deployGroup(
@@ -53,8 +53,7 @@ contract ZybraGroupTimeBasedYieldTest is Test {
             CYCLE_DURATION,
             TOTAL_CYCLES,
             admin,
-            address(vault),
-            treasury
+            address(vault)
         );
         
         group = ZybraGroup(groupAddress);
@@ -219,8 +218,7 @@ contract ZybraGroupTimeBasedYieldTest is Test {
             CYCLE_DURATION,
             TOTAL_CYCLES,
             admin,
-            address(vault),
-            treasury
+            address(vault)
         );
         
         ZybraGroup smallGroup = ZybraGroup(smallGroupAddress);

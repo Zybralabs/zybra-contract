@@ -4,14 +4,16 @@ pragma solidity 0.8.20;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IMorphoVaultV2} from "./interfaces/IMorphoVaultV2.sol";
 import {IFeeSource} from "./treasury/IFeeSource.sol";
 
+/// @notice Minimal interface to read treasury from the deploying factory
+interface IZybraGroupFactory {
+    function treasury() external view returns (address);
+}
 
 contract ZybraGroup is IFeeSource, ReentrancyGuard {
     using SafeERC20 for IERC20;
-    using Math for uint256;
 
     // ==================== STORAGE ====================
 
@@ -34,8 +36,8 @@ contract ZybraGroup is IFeeSource, ReentrancyGuard {
     uint256 public immutable cycleDuration;
     uint256 public immutable totalCycles;
 
-    // Treasury (immutable — set by factory, not changeable by group admin)
-    address public immutable treasury;
+    // Factory address — immutable, treasury is read from factory at runtime (one-to-all pattern)
+    address public immutable factory;
 
     // Group lifecycle
     uint256 public groupStartTime;
@@ -65,6 +67,7 @@ contract ZybraGroup is IFeeSource, ReentrancyGuard {
     uint256 public constant ACC_PRECISION = 1e12;    // Accumulator scaling factor
     uint256 public constant END_GROUP_GRACE_PERIOD = 7 days; // [FIX: H-02] Auto-end grace period
     uint256 public constant MIN_FEE_AUTO_COLLECT = 1e6; // 1 USDC threshold for auto-forwarding (gas optimization)
+    uint256 public constant MAX_YIELD_PER_ACCRUAL_BPS = 1000; // [FIX: AUDIT-02] 10% of capital max per single accrual (flash-loan protection)
 
     // ==================== EVENTS ====================
 
@@ -82,7 +85,6 @@ contract ZybraGroup is IFeeSource, ReentrancyGuard {
     event TokenSwept(address indexed token, uint256 amount);
     event Paused();
     event Unpaused();
-
     // ==================== ERRORS ====================
 
     error NotAdmin();
@@ -104,6 +106,7 @@ contract ZybraGroup is IFeeSource, ReentrancyGuard {
     error WithdrawFailed();
     error CannotSweep();
     error GroupNotExpired();
+    error FeeOnTransferNotSupported();
 
     // ==================== MODIFIERS ====================
 
@@ -125,11 +128,9 @@ contract ZybraGroup is IFeeSource, ReentrancyGuard {
         uint256 _cycleDuration,
         uint256 _totalCycles,
         address _admin,
-        address _vault,
-        address _treasury
+        address _vault
     ) {
         if (_asset == address(0) || _admin == address(0) || _vault == address(0)) revert ZeroAddress();
-        if (_treasury == address(0)) revert ZeroAddress();
         if (_amount < MIN_CONTRIBUTION || _amount > MAX_CONTRIBUTION) revert InvalidAmount();
         if (_cycleDuration == 0 || _totalCycles == 0 || _totalCycles > 52) revert InvalidCycle();
 
@@ -142,10 +143,16 @@ contract ZybraGroup is IFeeSource, ReentrancyGuard {
         cycleDuration = _cycleDuration;
         totalCycles = _totalCycles;
         vault = IMorphoVaultV2(_vault);
-        treasury = _treasury;
+        factory = msg.sender; // deployer is the factory (or test contract)
 
-        // Auto-add admin
+        // Auto-add admin as first member
         _addMember(_admin);
+    }
+
+    /// @notice Treasury address — always read from the factory (single source of truth)
+    /// @dev No storage in group. Factory owner calls factory.setTreasury() once → all groups see it.
+    function treasury() public view returns (address) {
+        return IZybraGroupFactory(factory).treasury();
     }
 
     // ==================== INTERNAL: ACCUMULATOR ====================
@@ -177,6 +184,20 @@ contract ZybraGroup is IFeeSource, ReentrancyGuard {
         if (totalEverYield <= lastMaterializedYield) return;
 
         uint256 newYield = totalEverYield - lastMaterializedYield;
+
+        // [FIX: AUDIT-02] Cap yield per accrual to prevent flash-loan share price inflation.
+        // If an attacker donates to the vault to temporarily spike convertToAssets(),
+        // newYield would be artificially inflated. Capping at MAX_YIELD_PER_ACCRUAL_BPS
+        // of capital ensures only realistic yield is materialized per call.
+        // Any excess is deferred to the next accrual when the vault price normalizes.
+        if (_totalCap > 0) {
+            uint256 maxYield = (_totalCap * MAX_YIELD_PER_ACCRUAL_BPS) / 10000;
+            if (newYield > maxYield) {
+                newYield = maxYield;
+                // Re-derive totalEverYield so lastMaterializedYield advances correctly
+                totalEverYield = lastMaterializedYield + newYield;
+            }
+        }
 
         if (_totalCap == 0) {
             // No capital to distribute to — all goes to fees
@@ -230,10 +251,11 @@ contract ZybraGroup is IFeeSource, ReentrancyGuard {
         if (toCollect < MIN_FEE_AUTO_COLLECT) return;
 
         // Try/catch: fee failure must NEVER block user's contribute/withdraw/claim
-        try vault.withdraw(toCollect, treasury, address(this)) returns (uint256 sharesBurned) {
+        address _treasury = treasury();
+        try vault.withdraw(toCollect, _treasury, address(this)) returns (uint256 sharesBurned) {
             if (sharesBurned > 0) {
                 totalFeesWithdrawn += toCollect;
-                emit FeesCollected(treasury, toCollect);
+                emit FeesCollected(_treasury, toCollect);
             }
         } catch {
             // Fee collection deferred — will retry on next user action
@@ -321,7 +343,9 @@ contract ZybraGroup is IFeeSource, ReentrancyGuard {
      * @dev Admin can end anytime. [FIX: H-02] After all cycles + grace period,
      *      ANY address can end the group — prevents admin key loss from blocking.
      */
-    function endGroup() external {
+    // [FIX: AUDIT-03] Added nonReentrant to prevent cross-function reentrancy
+    // via vault callbacks triggered by _accrueRewards() → _autoCollectFees() → vault.withdraw()
+    function endGroup() external nonReentrant {
         if (groupStartTime == 0) revert GroupNotStarted();
         if (groupEnded) revert GroupAlreadyEnded();
 
@@ -365,7 +389,15 @@ contract ZybraGroup is IFeeSource, ReentrancyGuard {
         _accrueRewards();
 
         uint256 amount = contributionAmount;
+
+        // [FIX: AUDIT-04] Measure actual tokens received to guard against fee-on-transfer tokens.
+        // If the token charges a transfer fee, the contract receives less than `amount`.
+        // Recording nominal `amount` while receiving less would inflate totalCapitalInGroup
+        // beyond actual vault holdings, eventually causing withdrawal failures.
+        uint256 balBefore = asset.balanceOf(address(this));
         asset.safeTransferFrom(msg.sender, address(this), amount);
+        uint256 received = asset.balanceOf(address(this)) - balBefore;
+        if (received != amount) revert FeeOnTransferNotSupported();
 
         // Update member capital — preserve existing pending yield via debt adjustment
         Member memory m = members[msg.sender];
@@ -388,12 +420,21 @@ contract ZybraGroup is IFeeSource, ReentrancyGuard {
         emit Contributed(msg.sender, amount, currentCycle);
     }
 
-    /**
-     * @notice Claim accumulated yield without withdrawing capital
-     * @dev Order-independent: accRewardPerShare is pre-computed.
-     *      Whether Alice or Bob claims first, they get identical yield per capital unit.
-     */
-    function claimYield() external nonReentrant whenNotPaused {
+    /// @notice Claim accumulated yield without withdrawing capital
+    /// @dev No pause check — users must always be able to exit with yield.
+    ///      Pause only blocks new inflows (contribute/join), never exits.
+    function claimYield() external nonReentrant {
+        _claimYieldTo(msg.sender);
+    }
+
+    /// @notice Claim yield to an alternative receiver (USDC blacklist escape hatch)
+    /// @param receiver Address to receive the yield tokens
+    function claimYieldTo(address receiver) external nonReentrant {
+        if (receiver == address(0)) revert ZeroAddress();
+        _claimYieldTo(receiver);
+    }
+
+    function _claimYieldTo(address receiver) internal {
         if (members[msg.sender].isActive != 1) revert NotMember();
 
         _accrueRewards();
@@ -410,16 +451,25 @@ contract ZybraGroup is IFeeSource, ReentrancyGuard {
         totalDistributedYield += pending;
 
         // CEI: state updated before external call
-        // [FIX: H-01] Validate vault withdrawal return
-        _safeVaultWithdraw(pending, msg.sender);
+        _safeVaultWithdraw(pending, receiver);
         emit YieldClaimed(msg.sender, pending);
     }
 
-    /**
-     * @notice Withdraw all capital + pending yield
-     * @dev Clears member completely. Capital removed from pool.
-     */
-    function withdraw() external nonReentrant whenNotPaused {
+    /// @notice Withdraw all capital + pending yield
+    /// @dev No pause check — users must always be able to exit.
+    ///      Pause only blocks new inflows (contribute/join), never exits.
+    function withdraw() external nonReentrant {
+        _withdrawTo(msg.sender);
+    }
+
+    /// @notice Withdraw capital + yield to an alternative receiver (USDC blacklist escape hatch)
+    /// @param receiver Address to receive capital + yield
+    function withdrawTo(address receiver) external nonReentrant {
+        if (receiver == address(0)) revert ZeroAddress();
+        _withdrawTo(receiver);
+    }
+
+    function _withdrawTo(address receiver) internal {
         if (members[msg.sender].isActive != 1) revert NotMember();
 
         _accrueRewards();
@@ -431,52 +481,87 @@ contract ZybraGroup is IFeeSource, ReentrancyGuard {
 
         if (totalAmount == 0) revert InvalidAmount();
 
+        // Pro-rata cap: if vault is impaired (bad debt, depeg), limit each
+        // user to their proportional share so losses are socialized fairly.
+        uint256 vaultShares_ = vault.balanceOf(address(this));
+        uint256 vaultValue_ = vaultShares_ > 0 ? vault.convertToAssets(vaultShares_) : 0;
+        if (vaultValue_ < totalCapitalInGroup && totalCapitalInGroup > 0) {
+            // Vault impaired — cap withdrawal pro-rata to actual vault value
+            totalAmount = (vaultValue_ * capital) / totalCapitalInGroup;
+            yieldAmount = 0; // no yield payout when vault is underwater
+            capital = totalAmount;
+        }
+
         // Clear member fully
         members[msg.sender] = Member(0, 0, 0, 0);
-        // [FIX: L-02] Use checked arithmetic
         activeMembersCount -= 1;
-        totalCapitalInGroup -= capital;
+        totalCapitalInGroup -= uint256(m.capitalInGroup);
 
         // Track yield for totalEverYield reconstruction
         if (yieldAmount > 0) {
             totalDistributedYield += yieldAmount;
         }
 
-        // [FIX: H-01] Validate vault withdrawal return
-        _safeVaultWithdraw(totalAmount, msg.sender);
+        _safeVaultWithdraw(totalAmount, receiver);
         emit Withdrawn(msg.sender, capital, yieldAmount);
     }
 
-    /**
-     * @notice Emergency withdraw — capital only, works even when paused
-     * @dev [FIX: MEDIUM-01] Escape hatch. No yield calculation.
-     *      Users can always recover their principal.
-     *      [FIX: M-01] Accrues rewards before state changes to prevent
-     *      yield dust lockup for remaining members.
-     */
+    /// @notice Emergency withdraw — capital only, works even when paused
+    /// @dev Escape hatch. Accrues rewards before state changes so forfeited
+    ///      yield is redistributed to remaining members, not locked.
     function emergencyWithdraw() external nonReentrant {
+        _emergencyWithdrawTo(msg.sender);
+    }
+
+    /// @notice Emergency withdraw to alternative receiver (USDC blacklist escape hatch)
+    function emergencyWithdrawTo(address receiver) external nonReentrant {
+        if (receiver == address(0)) revert ZeroAddress();
+        _emergencyWithdrawTo(receiver);
+    }
+
+    function _emergencyWithdrawTo(address receiver) internal {
         // NOTE: No pause check — this IS the escape hatch
         Member memory m = members[msg.sender];
         if (m.isActive != 1) revert NotMember();
         uint256 capital = m.capitalInGroup;
         if (capital == 0) revert InvalidAmount();
 
-        // [FIX: M-01] Accrue rewards before reducing totalCapitalInGroup
+        // Accrue rewards before reducing totalCapitalInGroup
         _accrueRewards();
+
+        // Pro-rata cap: if vault is impaired, limit to fair share (mirrors _withdrawTo)
+        uint256 withdrawAmount = capital;
+        {
+            uint256 vaultShares_ = vault.balanceOf(address(this));
+            uint256 vaultValue_ = vaultShares_ > 0 ? vault.convertToAssets(vaultShares_) : 0;
+            if (vaultValue_ < totalCapitalInGroup && totalCapitalInGroup > 0) {
+                withdrawAmount = (vaultValue_ * capital) / totalCapitalInGroup;
+            }
+        }
 
         // Calculate forfeited yield for event transparency
         uint256 forfeitedYield = _pendingReward(m);
 
         // Clear member
         members[msg.sender] = Member(0, 0, 0, 0);
-        // [FIX: L-02] Use checked arithmetic
         activeMembersCount -= 1;
         totalCapitalInGroup -= capital;
 
-        // Withdraw ONLY capital — yield stays for other users
-        // [FIX: H-01] Validate vault withdrawal return
-        _safeVaultWithdraw(capital, msg.sender);
-        emit EmergencyWithdrawn(msg.sender, capital, forfeitedYield);
+        // Redistribute forfeited yield to remaining members.
+        // forfeitedYield is already post-fee (the 10% protocol fee was already taken
+        // during _accrueRewards). Inject directly into the accumulator to avoid
+        // re-running through _accrueRewards which would charge the fee a second time.
+        if (forfeitedYield > 0 && totalCapitalInGroup > 0) {
+            accRewardPerShare += (forfeitedYield * ACC_PRECISION) / totalCapitalInGroup;
+        } else if (forfeitedYield > 0) {
+            // No remaining members — convert forfeited yield to protocol fees
+            // to prevent permanent vault lockup
+            totalAccumulatedFees += forfeitedYield;
+        }
+
+        // Withdraw capped amount
+        _safeVaultWithdraw(withdrawAmount, receiver);
+        emit EmergencyWithdrawn(msg.sender, withdrawAmount, forfeitedYield);
     }
 
     // ==================== ADMIN FUNCTIONS ====================
@@ -499,19 +584,23 @@ contract ZybraGroup is IFeeSource, ReentrancyGuard {
         // Auto-collect may have already forwarded fees — return 0 instead of reverting
         if (amount == 0) return 0;
 
-        // Cap at actual vault value to handle rounding dust
+        // Without this, vault losses (bad debt, depeg) could allow fee withdrawal
+        // from user principal, since fees were accrued when vault was healthy.
         uint256 vaultShares = vault.balanceOf(address(this));
         uint256 maxWithdrawable = vaultShares > 0 ? vault.convertToAssets(vaultShares) : 0;
-        if (amount > maxWithdrawable) {
-            amount = maxWithdrawable;
+        uint256 _totalCap = totalCapitalInGroup;
+        uint256 withdrawableForFees = maxWithdrawable > _totalCap ? maxWithdrawable - _totalCap : 0;
+        if (amount > withdrawableForFees) {
+            amount = withdrawableForFees;
         }
         if (amount == 0) return 0;
 
         totalFeesWithdrawn += amount;
 
         // [FIX: H-01] Validate vault withdrawal return
-        _safeVaultWithdraw(amount, treasury);
-        emit FeesCollected(treasury, amount);
+        address _treasury = treasury();
+        _safeVaultWithdraw(amount, _treasury);
+        emit FeesCollected(_treasury, amount);
     }
 
     function pendingFees() external view returns (uint256) {
@@ -524,6 +613,11 @@ contract ZybraGroup is IFeeSource, ReentrancyGuard {
         uint256 newYield = totalEverYield > lastMaterializedYield
             ? totalEverYield - lastMaterializedYield
             : 0;
+        // [FIX: AUDIT-REAUDIT] Mirror _accrueRewards() cap to prevent view overstatement
+        if (newYield > 0 && totalCapitalInGroup > 0) {
+            uint256 maxYield = (totalCapitalInGroup * MAX_YIELD_PER_ACCRUAL_BPS) / 10000;
+            if (newYield > maxYield) newYield = maxYield;
+        }
         uint256 newFees = (newYield * PROTOCOL_FEE_BPS) / 10000;
         uint256 totalFees = totalAccumulatedFees + newFees;
         return totalFees > totalFeesWithdrawn ? totalFees - totalFeesWithdrawn : 0;
@@ -607,6 +701,9 @@ contract ZybraGroup is IFeeSource, ReentrancyGuard {
 
             if (totalEverYield > lastMaterializedYield) {
                 uint256 newYield = totalEverYield - lastMaterializedYield;
+                // [FIX: AUDIT-REAUDIT] Mirror _accrueRewards() cap
+                uint256 maxYield = (_totalCap * MAX_YIELD_PER_ACCRUAL_BPS) / 10000;
+                if (newYield > maxYield) newYield = maxYield;
                 uint256 fee = (newYield * PROTOCOL_FEE_BPS) / 10000;
                 uint256 distributable = newYield - fee;
                 _accRPS += (distributable * ACC_PRECISION) / _totalCap;
@@ -638,6 +735,9 @@ contract ZybraGroup is IFeeSource, ReentrancyGuard {
 
                 if (totalEverYield > lastMaterializedYield) {
                     uint256 newYield = totalEverYield - lastMaterializedYield;
+                    // [FIX: AUDIT-REAUDIT] Mirror _accrueRewards() cap
+                    uint256 maxYield = (_totalCap * MAX_YIELD_PER_ACCRUAL_BPS) / 10000;
+                    if (newYield > maxYield) newYield = maxYield;
                     uint256 fee = (newYield * PROTOCOL_FEE_BPS) / 10000;
                     _accRPS += ((newYield - fee) * ACC_PRECISION) / _totalCap;
                 }

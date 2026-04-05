@@ -2,6 +2,13 @@
 cache/
 out/
 
+# Claude / agent tooling (local only, not for repo)
+.claude/
+.agents/
+
+# Broken / work-in-progress tests (local only)
+_broken_tests/
+
 # Ignores development broadcast logs
 !/broadcast
 /broadcast/*/31337/

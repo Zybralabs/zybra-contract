@@ -67,10 +67,9 @@ contract ZybraGroupAuditPoCTest is Test {
         vm.prank(admin);
         vault.setAnnualYieldRate(APY_BPS);
 
-        vm.prank(admin);
         group = new ZybraGroup(
             address(usdc), CONTRIBUTION, CYCLE_DURATION, TOTAL_CYCLES,
-            admin, address(vault), treasury
+            admin, address(vault)
         );
 
         address[6] memory users = [admin, alice, bob, charlie, attacker, treasury];

@@ -8,28 +8,7 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {IFeeSource} from "./IFeeSource.sol";
 import {ITreasury} from "./ITreasury.sol";
 
-/**
- * @title FeeCollector
- * @author Zybra Protocol
- * @notice Aggregates fees from multiple sources and forwards to Treasury.
- * @dev Follows Morpho fee recipient pattern with batched collection:
- *      - Registered fee sources (ZybraGroupV2 instances)
- *      - Pull-based collection (sources approve, we transferFrom)
- *      - Batched forwarding to Treasury
- *
- * WHY SEPARATE FROM TREASURY:
- *   - Treasury = pure custody (minimal attack surface)
- *   - FeeCollector = aggregation logic (can be upgraded independently)
- *   - Mirrors Aave's Collector + ReservesFactor separation
- *
- * ROLES:
- *   DEFAULT_ADMIN_ROLE  → Governance, can add/remove sources
- *   KEEPER_ROLE         → Automation (Gelato/Chainlink), can trigger collection
- *
- * INVARIANTS:
- *   1. Only registered sources can have fees collected
- *   2. All collected fees flow to Treasury (no intermediate custody)
- */
+
 contract FeeCollector is AccessControl, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
@@ -146,6 +125,14 @@ contract FeeCollector is AccessControl, ReentrancyGuard {
      * @notice Internal collection logic
      * @dev Pull from source → approve Treasury → deposit
      */
+    /**
+     * @notice Internal collection logic
+     * @dev [FIX: AUDIT-REAUDIT] Handles both fee collection patterns:
+     *      1. Pull-based: source sends tokens to FeeCollector → forward to Treasury
+     *      2. Push-based: source sends tokens directly to Treasury → record accounting only
+     *      ZybraGroup uses push-based (collectFees sends to factory.treasury()),
+     *      so we detect via balance delta whether tokens actually arrived here.
+     */
     function _collectFrom(address source) internal returns (uint256 amount) {
         // Get pending fees from source
         IFeeSource feeSource = IFeeSource(source);
@@ -154,24 +141,32 @@ contract FeeCollector is AccessControl, ReentrancyGuard {
         if (pending == 0) return 0;
 
         address asset = feeSource.feeAsset();
-
-        // Pull fees from source (source must approve this contract)
-        // Note: Some sources may use push (transferring directly to us)
-        // This handles both patterns
         uint256 balBefore = IERC20(asset).balanceOf(address(this));
         
         try feeSource.collectFees() returns (uint256 collected) {
-            amount = collected;
+            // Check if tokens actually arrived at FeeCollector
+            uint256 received = IERC20(asset).balanceOf(address(this)) - balBefore;
+            
+            if (received > 0) {
+                // Pull-based: tokens arrived at FeeCollector — forward to Treasury
+                amount = received;
+                IERC20(asset).forceApprove(address(treasury), amount);
+                treasury.deposit(asset, amount);
+            } else if (collected > 0) {
+                // Push-based: source already sent fees to treasury — record accounting only
+                amount = collected;
+            }
         } catch {
             // Source may have pushed directly, check balance delta
-            amount = IERC20(asset).balanceOf(address(this)) - balBefore;
+            uint256 received = IERC20(asset).balanceOf(address(this)) - balBefore;
+            if (received > 0) {
+                amount = received;
+                IERC20(asset).forceApprove(address(treasury), amount);
+                treasury.deposit(asset, amount);
+            }
         }
 
         if (amount == 0) return 0;
-
-        // Forward to Treasury
-        IERC20(asset).forceApprove(address(treasury), amount);
-        treasury.deposit(asset, amount);
 
         totalCollected[asset] += amount;
 

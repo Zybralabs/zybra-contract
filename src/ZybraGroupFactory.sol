@@ -20,16 +20,25 @@ contract ZybraGroupFactory {
         address vault
     );
     event FactoryOwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+    event FactoryOwnershipTransferProposed(address indexed currentOwner, address indexed pendingOwner);
+    event TreasuryUpdated(address indexed oldTreasury, address indexed newTreasury);
 
     // Errors
     error OnlyOwner();
+    error NotPendingOwner();
     error ZeroAddress();
     error InvalidAmount();
     error InvalidCycleLength();
+    error InvalidCycleDuration();
+    error TreasuryNotSet();
     error DeploymentFailed();
 
-    // Factory owner
+    // Factory owner (2-step transfer)
     address public owner;
+    address public pendingOwner;
+
+    // Protocol treasury — shared across all groups deployed by this factory
+    address public treasury;
 
     // Deployment tracking
     mapping(address => bool) public isDeployedGroup;
@@ -41,6 +50,7 @@ contract ZybraGroupFactory {
     uint256 public constant MAX_CONTRIBUTION = 1000e6; // Maximum 1000 USDC
     uint256 public constant MIN_CYCLE_LENGTH = 1;
     uint256 public constant MAX_CYCLE_LENGTH = 52;
+    uint256 public constant MAX_CYCLE_DURATION = 365 days; // [FIX] Prevent absurdly long cycle durations
 
     modifier onlyOwner() {
         if (msg.sender != owner) revert OnlyOwner();
@@ -52,8 +62,10 @@ contract ZybraGroupFactory {
         _;
     }
 
-    constructor() {
+    constructor(address _treasury) {
+        if (_treasury == address(0)) revert ZeroAddress();
         owner = msg.sender;
+        treasury = _treasury;
     }
 
     /**
@@ -64,7 +76,6 @@ contract ZybraGroupFactory {
      * @param _totalCycles The total number of cycles in the group
      * @param _admin The admin address for the new group
      * @param _vault The MetaMorpho vault address to use for this group
-     * @param _treasury The treasury address for protocol fees
      * @return groupAddress The address of the deployed ZybraGroupV2 contract
      */
     function deployGroup(
@@ -73,8 +84,7 @@ contract ZybraGroupFactory {
         uint256 _cycleDuration,
         uint256 _totalCycles,
         address _admin,
-        address _vault,
-        address _treasury
+        address _vault
     ) external returns (address groupAddress) {
         return _deployGroup(
             _asset,
@@ -82,8 +92,7 @@ contract ZybraGroupFactory {
             _cycleDuration,
             _totalCycles,
             _admin,
-            _vault,
-            _treasury
+            _vault
         );
     }
 
@@ -96,29 +105,28 @@ contract ZybraGroupFactory {
         uint256 _cycleDuration,
         uint256 _totalCycles,
         address _admin,
-        address _vault,
-        address _treasury
-    ) internal validAddress(_asset) validAddress(_admin) validAddress(_vault) validAddress(_treasury) returns (address) {
+        address _vault
+    ) internal validAddress(_asset) validAddress(_admin) validAddress(_vault) returns (address) {
+        if (treasury == address(0)) revert TreasuryNotSet();
         // Validate parameters
         if (_contributionAmount < MIN_CONTRIBUTION || _contributionAmount > MAX_CONTRIBUTION) {
             revert InvalidAmount();
         }
-        if (_cycleDuration == 0) {
-            revert InvalidCycleLength();
+        if (_cycleDuration == 0 || _cycleDuration > MAX_CYCLE_DURATION) {
+            revert InvalidCycleDuration();
         }
         if (_totalCycles < MIN_CYCLE_LENGTH || _totalCycles > MAX_CYCLE_LENGTH) {
             revert InvalidCycleLength();
         }
 
-        // Deploy new ZybraGroup
+        // Deploy new ZybraGroup (reads treasury from factory at runtime)
         try new ZybraGroup(
             _asset,
             _contributionAmount,
             _cycleDuration,
             _totalCycles,
             _admin,
-            _vault,
-            _treasury
+            _vault
         ) returns (ZybraGroup newGroup) {
             address groupAddress = address(newGroup);
 
@@ -220,16 +228,44 @@ contract ZybraGroupFactory {
     // ==================== OWNER FUNCTIONS ====================
 
     /**
-     * @dev Transfer ownership of the factory
-     * @param _newOwner The new owner address
+     * @dev Update the protocol treasury address.
+     *      Groups read treasury from factory at runtime — no propagation needed.
+     *      Change it here once, all groups see it immediately.
+     * @param _treasury The new treasury address
+     */
+    function setTreasury(address _treasury)
+        external
+        onlyOwner
+        validAddress(_treasury)
+    {
+        address oldTreasury = treasury;
+        treasury = _treasury;
+        emit TreasuryUpdated(oldTreasury, _treasury);
+    }
+
+    /**
+     * @dev Propose ownership transfer of the factory (2-step pattern)
+     *      [FIX] Consistent with ZybraGroup's 2-step admin transfer.
+     *      Prevents permanent loss from address typo.
+     * @param _newOwner The proposed new owner address
      */
     function transferOwnership(address _newOwner)
         external
         onlyOwner
         validAddress(_newOwner)
     {
+        pendingOwner = _newOwner;
+        emit FactoryOwnershipTransferProposed(owner, _newOwner);
+    }
+
+    /**
+     * @dev Accept factory ownership — must be called by pending owner
+     */
+    function acceptOwnership() external {
+        if (msg.sender != pendingOwner) revert NotPendingOwner();
         address oldOwner = owner;
-        owner = _newOwner;
-        emit FactoryOwnershipTransferred(oldOwner, _newOwner);
+        owner = msg.sender;
+        pendingOwner = address(0);
+        emit FactoryOwnershipTransferred(oldOwner, msg.sender);
     }
 }
